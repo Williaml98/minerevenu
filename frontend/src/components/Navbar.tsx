@@ -26,9 +26,11 @@ const Navbar: React.FC = () => {
                         <a href="#contact" className="text-slate-300 hover:text-amber-400 transition-colors duration-300">
                             Contact
                         </a>
-                        <button className="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-900 font-semibold py-2 px-6 rounded-lg transition-all duration-300">
-                            Get Started
-                        </button>
+                        <a href="/auth">
+                            <button className="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-900 font-semibold py-2 px-6 rounded-lg transition-all duration-300">
+                                Account
+                            </button>
+                        </a>
                     </div>
 
                     {/* Mobile Menu Button */}
@@ -55,9 +57,11 @@ const Navbar: React.FC = () => {
                             <a href="#contact" className="text-slate-300 hover:text-amber-400 transition-colors duration-300">
                                 Contact
                             </a>
-                            <button className="bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-900 font-semibold py-2 px-6 rounded-lg mt-2">
-                                Get Started
-                            </button>
+                            <a href="/auth">
+                                <button className="bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-900 font-semibold py-2 px-6 rounded-lg mt-2">
+                                    Account
+                                </button>
+                            </a>
                         </div>
                     </div>
                 )}

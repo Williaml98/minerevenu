@@ -13,7 +13,6 @@ import Footer from '@/components/Footer';
 const HomePage: React.FC = () => {
     return (
         <div className="min-h-screen">
-            <Navbar />
             <HeroSection />
             <FeaturesSection />
             <DashboardPreview />
@@ -21,7 +20,6 @@ const HomePage: React.FC = () => {
             <AboutSection />
             <TestimonialsSection />
             <CTASection />
-            <Footer />
         </div>
     );
 };
