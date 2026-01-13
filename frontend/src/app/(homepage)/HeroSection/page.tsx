@@ -41,7 +41,7 @@ const MineTrackerHero: React.FC = () => {
                 {/* Call to Action Button */}
                 <div className="flex justify-center">
                     <Link
-                        href="/get-started"
+                        href="/auth"
                         className="inline-flex items-center justify-center px-8 py-4 sm:px-12 sm:py-5 text-lg sm:text-xl font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-2xl hover:shadow-blue-500/25 focus:outline-none focus:ring-4 focus:ring-blue-500/50"
                     >
                         Get Started
