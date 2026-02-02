@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRegisterMutation } from "@/lib/redux/slices/AuthSlice";
 
 export default function SignUpPage() {
     const [formData, setFormData] = useState({
@@ -10,6 +11,8 @@ export default function SignUpPage() {
         password: "",
         confirmPassword: ""
     });
+
+    const [signUp] = useRegisterMutation();
     const [isLoading, setIsLoading] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -69,7 +72,7 @@ export default function SignUpPage() {
 
         // Add your registration logic here
         try {
-            // Example: await signUp({ ...formData });
+            await signUp({ ...formData });
             console.log("Sign up attempt:", formData);
         } catch (error) {
             console.error("Sign up error:", error);

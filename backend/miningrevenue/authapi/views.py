@@ -19,9 +19,7 @@ from .serializers import (
 )
 from .permissions import (
     IsAdmin,
-    IsAdminOrOfficerOrAuditorOrStakeholder,
-    IsAdminOrAuditor,
-    IsAuditor,
+    IsAdminOrStakeholderOrOfficer,
     IsOfficer,
     IsStakeholder,
 )
@@ -194,44 +192,17 @@ class AdminOnlyView(APIView):
         return Response({"message": "Hello Admin"})
 
 
-class IsAdminOrOfficerOrAuditorOrStakeholder(APIView):
-    permission_classes = [
-        permissions.IsAuthenticated,
-        IsAdminOrOfficerOrAuditorOrStakeholder,
-    ]
-
-    def get(self, request):
-        return Response({"message": "Hello Authorized User"})
-
-
-class AdminOrAuditorView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsAdminOrAuditor]
-
-    def get(self, request):
-        return Response({"message": "Hello Admin or Auditor"})
-
-
-class AuditorOnlyView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsAuditor]
-
-    def get(self, request):
-        return Response({"message": "Hello Auditor"})
-
-
 class OfficerOnlyView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsOfficer]
 
     def get(self, request):
         return Response({"message": "Hello Officer"})
 
-
 class StakeholderOnlyView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsStakeholder]
 
     def get(self, request):
         return Response({"message": "Hello Stakeholder"})
-
-
 class ProfileUpdateView(generics.UpdateAPIView):
     serializer_class = ProfileUpdateSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -452,7 +423,7 @@ class UserListView(generics.ListAPIView):
 
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsAdminOrOfficerOrAuditorOrStakeholder]
+    permission_classes = [IsAdminOrStakeholderOrOfficer]
 
     def get(self, request, *args, **kwargs):
         # Log user list access
@@ -469,7 +440,7 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsAdminOrAuditor]
+    permission_classes = [IsAdminOrStakeholderOrOfficer]
 
     def _get_changed_fields(self, old_data, new_data):
         """Helper to identify changed fields"""

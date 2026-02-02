@@ -113,7 +113,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "backend.wsgi.application"
+WSGI_APPLICATION = "miningrevenue.wsgi.application"
 
 
 # Database

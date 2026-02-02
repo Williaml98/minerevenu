@@ -18,64 +18,66 @@ export const authOptions = {
 
         try {
           console.log("Attempting login with:", credentials.email);
-
+          
           const response = await axios.post(
-            `${process.env.NEXT_PUBLIC_API_URL}/api/account/login`,
+            `${process.env.NEXT_PUBLIC_API_URL}/api/auth/login/`,
             {
               email: credentials.email,
               password: credentials.password,
             },
             {
-              timeout: 10000,
+              timeout: 10000, 
               headers: {
                 'Content-Type': 'application/json',
               }
             }
           );
 
-          console.log("API Response:", response.data);
+          console.log("API Response status:", response.status);
+          console.log("API Response data:", response.data);
 
-          // Check if the response is successful and has user data
-          if (!response.data?.success || !response.data?.user) {
-            console.log("Invalid response structure or unsuccessful login");
+          // Check if response has the expected structure
+          if (!response.data?.access || !response.data?.user) {
+            console.log("Invalid response structure or missing access token");
             return null;
           }
 
-          const { user } = response.data;
+          const { user, access: token, refresh } = response.data;
 
-          // Validate that we have the required user properties
-          if (!user.id || !user.email) {
-            console.log("Missing required user properties");
-            return null;
-          }
+          console.log("Login successful for user:", user.email);
 
-          // Return the user object that NextAuth expects
           return {
-            id: user.id.toString(),
+            id: user.id.toString(), 
             email: user.email,
-            username: user.username,
+            name: user.username, 
             role: user.role,
-            token: user.token, // The token is inside the user object
-            refreshToken: null, // Set to null since your API doesn't provide refresh token
+            token,
+            refreshToken: refresh, 
           };
-
-        } catch (error) {
-          console.error("Login error:", error);
-
+        } catch (error) { 
+          console.error("Authentication error:", error);
+          
           if (axios.isAxiosError(error)) {
+            console.error("Axios error details:", {
+              status: error.response?.status,
+              statusText: error.response?.statusText,
+              data: error.response?.data,
+              message: error.message
+            });
+            
+           
             if (error.response?.status === 401) {
-              console.log("Invalid credentials - 401 error");
+              console.log("Invalid credentials from API");
               return null;
             }
+            
             if (error.response?.status >= 500) {
-              console.log("Server error - 500+ error");
+              console.log("Server error from API");
               return null;
             }
-            // Log other HTTP errors for debugging
-            console.log("HTTP error:", error.response?.status, error.response?.data);
           }
-
-          return null;
+          
+          return null; 
         }
       },
     }),
@@ -85,7 +87,7 @@ export const authOptions = {
       if (user) {
         token.id = user.id;
         token.email = user.email;
-        token.username = user.username;
+        token.name = user.name;
         token.role = user.role;
         token.accessToken = user.token;
         token.refreshToken = user.refreshToken;
@@ -96,7 +98,7 @@ export const authOptions = {
       session.user = {
         id: token.id,
         email: token.email,
-        username: token.username,
+        name: token.name,
         role: token.role,
         token: token.accessToken,
         refreshToken: token.refreshToken,
@@ -105,7 +107,7 @@ export const authOptions = {
     },
   },
   pages: {
-    signIn: "/account",
+    signIn: "/auth",
   },
   session: {
     strategy: "jwt",
