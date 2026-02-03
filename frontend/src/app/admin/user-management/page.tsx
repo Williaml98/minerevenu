@@ -5,7 +5,7 @@ import { useCreateUserMutation, useGetAllUsersQuery } from '@/lib/redux/slices/A
 import { useUpdateUserMutation, useDeleteUserMutation, useToggleUserActiveMutation } from '@/lib/redux/slices/AuthSlice';
 import { toast } from 'react-toastify';
 
-const roles = ["All Roles", "Admin", "Police", "Investigator"];
+const roles = ["All Roles", "Admin", "Officer", "Stakeholder"];
 
 interface User {
     id: number;
@@ -13,7 +13,6 @@ interface User {
     email: string;
     role: string;
     status: string;
-    // Add these potential alternative field names from your DB
     isActive?: boolean;
     active?: boolean;
     is_active?: boolean;
@@ -48,7 +47,7 @@ const UserManagementDashboard = () => {
     const [newUser, setNewUser] = useState<NewUser>({
         username: '',
         email: '',
-        role: 'Police',
+        role: 'Officer',
         status: 'Active'
     });
 
@@ -545,9 +544,9 @@ const UserManagementDashboard = () => {
                                     value={newUser.role}
                                     onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
                                 >
-                                    <option value="Police">Officer</option>
+                                    <option value="Officer">Officer</option>
                                     <option value="Admin">Admin</option>
-                                    <option value="Investigator">Investigator</option>
+                                    <option value="Stakeholder">Stakeholder</option>
                                 </select>
                             </div>
 
@@ -638,9 +637,9 @@ const UserManagementDashboard = () => {
                                     value={editingUser.role}
                                     onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}
                                 >
-                                    <option value="Police">Officer</option>
+                                    <option value="Officer">Officer</option>
                                     <option value="Admin">Admin</option>
-                                    <option value="Investigator">Investigator</option>
+                                    <option value="Stakeholder">Stakeholder</option>
                                 </select>
                             </div>
                         </div>

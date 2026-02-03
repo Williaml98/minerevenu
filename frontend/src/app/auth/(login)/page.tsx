@@ -1,23 +1,108 @@
 "use client";
 
 import { useState } from "react";
+import { Eye, EyeOff, Home, Shield, User } from 'lucide-react';
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
+import { toast } from "sonner";
+import Image from "next/image";
 
 export default function SignInPage() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const router = useRouter();
+
+    const getRoleIcon = (role: string) => {
+        switch (role.toLowerCase()) {
+            case "Admin":
+                return <User className="h-6 w-6" />;
+            case "Stakeholder":
+                return <Shield className="h-6 w-6" />;
+            case "Officer":
+                return <Home className="h-6 w-6" />;
+            default:
+                return <User className="h-6 w-6" />;
+        }
+    };
+
+    const getRoleMessage = (role: string) => {
+        switch (role.toLowerCase()) {
+            case "admin":
+                return "welcome to the admin dashboard";
+            case "stakeholder":
+                return "welcome to the stakeholder dashboard";
+            case "officer":
+                return "welcome to the officer dashboard";
+            default:
+                return "welcome to the dashboard";
+        }
+    };
+
+    const getRedirectPath = (role: string) => {
+        switch (role.toLowerCase()) {
+            case "admin":
+                return "/admin";
+            case "stakeholder":
+                return "/stakeholder";
+            case "officer":
+                return "/officer";
+            default:
+                return "/";
+        }
+    };
+
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
 
-        // Add your authentication logic here
         try {
-            // Example: await signIn("credentials", { email, password });
-            console.log("Sign in attempt:", { email, password });
-        } catch (error) {
-            console.error("Sign in error:", error);
+            const result = await signIn("credentials", {
+                redirect: false,
+                email,
+                password,
+            });
+            if (result?.error) {
+                toast.error(result.error === 'CredentialsSignin' ? 'Invalid credentials' : result.error, {
+                    style: {
+                        background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                        color: 'white',
+                        border: '1px solid #fca5a5',
+                    },
+                });
+            } else {
+                const sessionResponse = await fetch('/api/auth/session');
+                const session = await sessionResponse.json();
+
+                const userRole = session?.user?.role || 'User';
+                const redirectPath = getRedirectPath(userRole);
+                const welcomeMessage = getRoleMessage(userRole);
+
+                toast.success(welcomeMessage, {
+                    icon: getRoleIcon(userRole),
+                    duration: 3000,
+                    style: {
+                        background: 'linear-gradient(135deg, #10b981, #059669)',
+                        color: 'white',
+                        border: '1px solid #6ee7b7',
+                        fontWeight: '600',
+                    },
+                });
+                setTimeout(() => {
+                    router.push(redirectPath);
+                }, 1500);
+            }
+        } catch {
+            toast.error('Login failed. Please try again.', {
+                style: {
+                    background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                    color: 'white',
+                    border: '1px solid #fca5a5',
+                },
+            });
         } finally {
             setIsLoading(false);
         }
@@ -29,10 +114,12 @@ export default function SignInPage() {
                 {/* Left Side - Image with Blue Overlay */}
                 <div className="hidden md:block md:w-1/2 relative">
                     <div className="absolute inset-0 bg-blue-600/60 z-10"></div>
-                    <img
+                    <Image
                         src="/images/mining.png"
                         alt="Construction worker"
-                        className="w-full h-full object-cover"
+                        fill
+                        className="object-cover"
+                        priority
                     />
                 </div>
 
@@ -52,7 +139,6 @@ export default function SignInPage() {
 
                             {/* Form */}
                             <form onSubmit={handleSubmit} className="space-y-9">
-                                {/* Email Field */}
                                 <div>
                                     <label
                                         htmlFor="email"
@@ -71,23 +157,29 @@ export default function SignInPage() {
                                     />
                                 </div>
 
-                                {/* Password Field */}
-                                <div>
-                                    <label
-                                        htmlFor="password"
-                                        className="block text-lg font-semibold text-gray-700 mb-4"
-                                    >
-                                        Password
-                                    </label>
+                                <div className="mt-2 relative">
                                     <input
                                         id="password"
-                                        type="password"
+                                        name="password"
+                                        type={showPassword ? "text" : "password"}
+                                        autoComplete="current-password"
+                                        required
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
-                                        placeholder="Enter your password"
-                                        required
-                                        className="w-full px-6 py-5 text-lg border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-700 placeholder-gray-400"
+                                        placeholder="********"
+                                        className="appearance-none block w-full px-5 py-4 bg-black/30 text-white placeholder-gray-500 border border-blue-500/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-lg"
                                     />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="absolute inset-y-0 right-0 flex items-center pr-4 text-gray-400 hover:text-gray-300"
+                                    >
+                                        {showPassword ? (
+                                            <EyeOff className="h-6 w-6" aria-hidden="true" />
+                                        ) : (
+                                            <Eye className="h-6 w-6" aria-hidden="true" />
+                                        )}
+                                    </button>
                                 </div>
 
                                 {/* Sign In Button */}
@@ -113,7 +205,7 @@ export default function SignInPage() {
                             {/* Sign Up Link */}
                             <div className="mt-12 text-center">
                                 <p className="text-gray-600 text-lg">
-                                    Don't have an account?{" "}
+                                    Don&apos;t have an account?{" "}
                                     <Link
                                         href="/auth/signup"
                                         className="text-blue-600 hover:text-blue-700 font-semibold transition-colors"
