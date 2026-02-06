@@ -35,7 +35,7 @@ const Navbar = ({ onSearch }: NavbarProps) => {
     const getProfileImageUrl = () => {
         if (userDetails?.profile_picture) {
             if (userDetails.profile_picture.startsWith('/media/')) {
-                return `http://localhost:8000${userDetails.profile_picture}`;
+                return `http://127.0.0.1:8000${userDetails.profile_picture}`;
             }
             if (userDetails.profile_picture.startsWith('http')) {
                 return userDetails.profile_picture;
