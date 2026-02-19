@@ -1,0 +1,6 @@
+# ML training script dependencies (trainmodel.py)
+pandas
+numpy
+scikit-learn
+joblib
+statsmodels
