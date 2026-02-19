@@ -7,12 +7,10 @@ from .serializers import MineSerializer, ProductionRecordSerializer
 class MineViewSet(viewsets.ModelViewSet):
     queryset = Mine.objects.all()
     serializer_class = MineSerializer
-    permission_classes = [permissions.IsOfficer]
-    
-    
+    permission_classes = [permissions.IsAuthenticated]
+
 
 class ProductionRecordViewSet(viewsets.ModelViewSet):
     queryset = ProductionRecord.objects.all()
     serializer_class = ProductionRecordSerializer
-    permission_classes = [permissions.IsOfficer]
-    
+    permission_classes = [permissions.IsAuthenticated]
