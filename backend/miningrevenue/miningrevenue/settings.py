@@ -43,7 +43,9 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt",
     "authapi",
     "AuditLog",
-    "revenue_detection",
+    "analytics",
+    "mining",
+    "revenue",
     "corsheaders",
 ]
 
