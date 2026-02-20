@@ -111,9 +111,16 @@ export default function SignInPage() {
     return (
         <div className="w-full h-screen flex items-center justify-center p-2 md:p-6">
             <div className="w-full h-full md:h-[95vh] flex flex-col md:flex-row rounded-none md:rounded-3xl overflow-hidden shadow-2xl">
-                {/* Left Side - Image with Blue Overlay */}
-                <div className="hidden md:block md:w-1/2 relative">
-                    <div className="absolute inset-0 bg-blue-600/60 z-10"></div>
+                <div className="hidden md:block md:w-1/2 relative" style={{ textAlign: 'center' }}>
+                    <div className="absolute inset-0 bg-blue-600/60 z-10">
+                        <Link href="/" className="group flex items-center space-x-2 text-white hover:text-blue-400 transition-all duration-300 transform hover:scale-105" style={{ textDecoration: 'none', justifyContent: 'center' }}>
+                            <Home className="w-5 h-screen transition-transform duration-300 group-hover:rotate-12" />
+                            <span className="relative" style={{ fontSize: '25 px' }}>
+                                Back to Home
+                                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-blue-400 transition-all duration-300 group-hover:w-full"></span>
+                            </span>
+                        </Link>
+                    </div>
                     <Image
                         src="/images/mining.png"
                         alt="Construction worker"
@@ -123,7 +130,6 @@ export default function SignInPage() {
                     />
                 </div>
 
-                {/* Right Side - Sign In Form */}
                 <div className="w-full md:w-1/2 bg-blue-600 flex items-center justify-center p-6 md:p-20">
                     <div className="w-full max-w-2xl">
                         <div className="bg-white rounded-3xl shadow-2xl p-12 md:p-20">
@@ -167,7 +173,7 @@ export default function SignInPage() {
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
                                         placeholder="********"
-                                        className="appearance-none block w-full px-5 py-4 bg-black/30 text-white placeholder-gray-500 border border-blue-500/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-lg"
+                                        className="appearance-none block w-full px-5 py-4 bg-white text-white placeholder-gray-500 border border-blue-500/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-lg"
                                     />
                                     <button
                                         type="button"

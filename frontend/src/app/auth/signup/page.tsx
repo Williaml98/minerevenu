@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRegisterMutation } from "@/lib/redux/slices/AuthSlice";
+import { Home } from "lucide-react";
+import Image from "next/image";
 
 export default function SignUpPage() {
     const [formData, setFormData] = useState({
@@ -86,11 +88,21 @@ export default function SignUpPage() {
             <div className="w-full h-full md:h-[95vh] flex flex-col md:flex-row rounded-none md:rounded-3xl overflow-hidden shadow-2xl">
                 {/* Left Side - Image with Blue Overlay */}
                 <div className="hidden md:block md:w-1/2 relative">
-                    <div className="absolute inset-0 bg-blue-600/60 z-10"></div>
-                    <img
+                    <div className="absolute inset-0 bg-blue-600/60 z-10">
+                        <Link href="/" className="group flex items-center space-x-2 text-white hover:text-blue-400 transition-all duration-300 transform hover:scale-105" style={{ textDecoration: 'none', justifyContent: 'center' }}>
+                            <Home className="w-5 h-screen transition-transform duration-300 group-hover:rotate-12" />
+                            <span className="relative" style={{ fontSize: '25 px' }}>
+                                Back to Home
+                                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-blue-400 transition-all duration-300 group-hover:w-full"></span>
+                            </span>
+                        </Link>
+                    </div>
+                    <Image
                         src="/images/mining.png"
                         alt="Construction worker"
-                        className="w-full h-full object-cover"
+                        fill
+                        className="object-cover"
+                        priority
                     />
                 </div>
 
