@@ -14,6 +14,7 @@ class GenerateForecastAPIView(APIView):
 
         today = date.today()
 
+        created_forecasts = []
         for i, value in enumerate(predictions):
             forecast_date = today + timedelta(days=30*(i+1))
 
@@ -22,7 +23,9 @@ class GenerateForecastAPIView(APIView):
                 predicted_revenue=value
             )
 
-        return Response(RevenueForecastSerializer(obj, many=True).data)
+            created_forecasts.append(obj)
+
+        return Response(RevenueForecastSerializer(created_forecasts, many=True).data)
     
 
 class RevenueForecastViewSet(viewsets.ModelViewSet):
