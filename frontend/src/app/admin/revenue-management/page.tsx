@@ -1,14 +1,22 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-    Filter, Download, Upload, Plus, Eye, Check, X,
-    AlertTriangle, FileText, Calendar, ChevronRight
+    useCreateProductionRecordMutation,
+    useCreateSalesTransactionMutation,
+    useGetProductionRecordsQuery,
+    useGetSalesTransactionsQuery,
+    useGetMineCompaniesQuery
+} from "@/lib/redux/slices/MiningSlice";
+import {
+    Download, Plus, Eye, Check, X,
+    AlertTriangle, FileText, ChevronRight
 } from 'lucide-react';
 
 // Types
 interface RevenueEntry {
-    id: string;
+    id: string | number;
     siteName: string;
+    siteId: number;
     revenueSource: string;
     amount: number;
     dateSubmitted: string;
@@ -16,50 +24,77 @@ interface RevenueEntry {
     submittedBy: string;
     evidenceDoc?: string;
     description?: string;
+    type: 'production' | 'sales';
+    recordId: number;
 }
 
-interface Alert {
-    id: string;
-    message: string;
-    type: 'warning' | 'error' | 'info';
+// interface Alert {
+//     id: string;
+//     message: string;
+//     type: 'warning' | 'error' | 'info';
+// }
+
+interface ProductionFormData {
+    mineId: number | null;
+    mineName: string;
+    date: string;
+    quantity_produced: number;
+    unit_price: number;
 }
 
-// Sample Data
-const sampleEntries: RevenueEntry[] = [
-    { id: '1', siteName: 'Site A', revenueSource: 'Tin Export', amount: 54500000, dateSubmitted: '2024-11-15', status: 'Pending Review', submittedBy: 'John Doe', evidenceDoc: 'export_receipt.pdf' },
-    { id: '2', siteName: 'Site B', revenueSource: 'Coltan Sales', amount: 87300000, dateSubmitted: '2024-11-14', status: 'Approved', submittedBy: 'Sarah Evans', evidenceDoc: 'sales_invoice.pdf' },
-    { id: '3', siteName: 'Site C', revenueSource: 'Tungsten Export', amount: 42100000, dateSubmitted: '2024-11-13', status: 'Rejected', submittedBy: 'Michael Johnson', evidenceDoc: 'export_doc.pdf' },
-    { id: '4', siteName: 'Site A', revenueSource: 'Processing Fees', amount: 12500000, dateSubmitted: '2024-11-12', status: 'Approved', submittedBy: 'Lisa Brown', evidenceDoc: 'fee_receipt.pdf' },
-    { id: '5', siteName: 'Site D', revenueSource: 'Tin Export', amount: 65800000, dateSubmitted: '2024-11-11', status: 'Pending Review', submittedBy: 'David Wilson', evidenceDoc: 'export_proof.pdf' },
-];
-
-const sampleAlerts: Alert[] = [
-    { id: '1', message: 'Unusual spike detected in Site B revenue', type: 'warning' },
-    { id: '2', message: 'Missing submission from Site D for 3 days', type: 'error' },
-    { id: '3', message: 'Revenue source mismatch detected in Site A', type: 'warning' },
-];
+interface SalesFormData {
+    mineId: number | null;
+    mineName: string;
+    date: string;
+    quantity: number;
+    unit_price: number;
+    payment_method: string;
+}
 
 export default function RevenueManagement() {
-    const [entries, setEntries] = useState<RevenueEntry[]>(sampleEntries);
+    // RTK Query hooks
+    const { data: productionRecords = [], isLoading: loadingProduction } = useGetProductionRecordsQuery({});
+    const { data: salesTransactions = [], isLoading: loadingSales } = useGetSalesTransactionsQuery({});
+    const { data: mineCompanies = [], isLoading: loadingMines } = useGetMineCompaniesQuery({});
+
+    const [createProductionRecord, { isLoading: creatingProduction }] = useCreateProductionRecordMutation();
+    const [createSalesTransaction, { isLoading: creatingSales }] = useCreateSalesTransactionMutation();
+
+    // Local state
+    const [entries, setEntries] = useState<RevenueEntry[]>([]);
     const [siteFilter, setSiteFilter] = useState('All Sites');
     const [statusFilter, setStatusFilter] = useState('All');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
+    const [revenueSourceFilter, setRevenueSourceFilter] = useState('All Sources');
 
-    const [showAddSourceModal, setShowAddSourceModal] = useState(false);
+    // Modal states
+    const [showAddProductionModal, setShowAddProductionModal] = useState(false);
+    const [showAddSalesModal, setShowAddSalesModal] = useState(false);
     const [showViewModal, setShowViewModal] = useState(false);
     const [showApproveModal, setShowApproveModal] = useState(false);
     const [showRejectModal, setShowRejectModal] = useState(false);
-    const [showImportModal, setShowImportModal] = useState(false);
+    const [] = useState(false);
     const [showExportModal, setShowExportModal] = useState(false);
     const [selectedEntry, setSelectedEntry] = useState<RevenueEntry | null>(null);
     const [actionType, setActionType] = useState<'approve' | 'reject'>('approve');
 
-    const [sourceForm, setSourceForm] = useState({
-        name: '',
-        category: '',
-        expectedRange: '',
-        description: ''
+    // Form states
+    const [productionForm, setProductionForm] = useState<ProductionFormData>({
+        mineId: null,
+        mineName: '',
+        date: new Date().toISOString().split('T')[0],
+        quantity_produced: 0,
+        unit_price: 0
+    });
+
+    const [salesForm, setSalesForm] = useState<SalesFormData>({
+        mineId: null,
+        mineName: '',
+        date: new Date().toISOString().split('T')[0],
+        quantity: 0,
+        unit_price: 0,
+        payment_method: 'Bank Transfer'
     });
 
     const [exportForm, setExportForm] = useState({
@@ -67,6 +102,55 @@ export default function RevenueManagement() {
         dateRange: '',
         format: 'CSV'
     });
+
+    // Combine and transform API data into RevenueEntry format
+    useEffect(() => {
+        if (productionRecords.length > 0 || salesTransactions.length > 0) {
+            const combined: RevenueEntry[] = [];
+
+            // Transform production records
+            productionRecords.forEach((record: any) => {
+                const mine = mineCompanies.find((m: any) => m.id === record.mine);
+                combined.push({
+                    id: `prod-${record.id}`,
+                    siteName: mine?.name || `Mine #${record.mine}`,
+                    siteId: record.mine,
+                    revenueSource: 'Production',
+                    amount: record.total_revenue || (record.quantity_produced * record.unit_price),
+                    dateSubmitted: record.date,
+                    status: 'Pending Review', // Default status
+                    submittedBy: 'System',
+                    type: 'production',
+                    recordId: record.id
+                });
+            });
+
+            // Transform sales transactions
+            salesTransactions.forEach((sale: any) => {
+                const mine = mineCompanies.find(m => m.id === sale.mine);
+                combined.push({
+                    id: `sales-${sale.id}`,
+                    siteName: mine?.name || `Mine #${sale.mine}`,
+                    siteId: sale.mine,
+                    revenueSource: 'Sales',
+                    amount: sale.total_amount || (sale.quantity * sale.unit_price),
+                    dateSubmitted: sale.date,
+                    status: sale.is_flagged ? 'Rejected' : 'Pending Review',
+                    submittedBy: `User #${sale.created_by}`,
+                    type: 'sales',
+                    recordId: sale.id,
+                    description: `Payment: ${sale.payment_method}`
+                });
+            });
+
+            // Sort by date (most recent first)
+            combined.sort((a, b) => new Date(b.dateSubmitted).getTime() - new Date(a.dateSubmitted).getTime());
+            setEntries(combined);
+        }
+    }, [productionRecords, salesTransactions, mineCompanies]);
+
+    // Get unique revenue sources for filter
+    const revenueSources = ['All Sources', ...new Set(entries.map(e => e.revenueSource))];
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -83,6 +167,68 @@ export default function RevenueManagement() {
             currency: 'RWF',
             minimumFractionDigits: 0
         }).format(amount);
+    };
+
+    const handleCreateProduction = async () => {
+        if (!productionForm.mineId || !productionForm.date || productionForm.quantity_produced <= 0 || productionForm.unit_price <= 0) {
+            alert('Please fill all fields correctly');
+            return;
+        }
+
+        try {
+            await createProductionRecord({
+                mine: productionForm.mineId,
+                date: productionForm.date,
+                quantity_produced: productionForm.quantity_produced,
+                unit_price: productionForm.unit_price
+            }).unwrap();
+
+            // Reset form and close modal
+            setProductionForm({
+                mineId: null,
+                mineName: '',
+                date: new Date().toISOString().split('T')[0],
+                quantity_produced: 0,
+                unit_price: 0
+            });
+            setShowAddProductionModal(false);
+            alert('Production record created successfully!');
+        } catch (error) {
+            console.error('Failed to create production record:', error);
+            alert('Failed to create production record');
+        }
+    };
+
+    const handleCreateSales = async () => {
+        if (!salesForm.mineId || !salesForm.date || salesForm.quantity <= 0 || salesForm.unit_price <= 0 || !salesForm.payment_method) {
+            alert('Please fill all fields correctly');
+            return;
+        }
+
+        try {
+            await createSalesTransaction({
+                mine: salesForm.mineId,
+                date: salesForm.date,
+                quantity: salesForm.quantity,
+                unit_price: salesForm.unit_price,
+                payment_method: salesForm.payment_method
+            }).unwrap();
+
+            // Reset form and close modal
+            setSalesForm({
+                mineId: null,
+                mineName: '',
+                date: new Date().toISOString().split('T')[0],
+                quantity: 0,
+                unit_price: 0,
+                payment_method: 'Bank Transfer'
+            });
+            setShowAddSalesModal(false);
+            alert('Sales transaction created successfully!');
+        } catch (error) {
+            console.error('Failed to create sales transaction:', error);
+            alert('Failed to create sales transaction');
+        }
     };
 
     const handleApprove = (entry: RevenueEntry) => {
@@ -112,10 +258,27 @@ export default function RevenueManagement() {
     const filteredEntries = entries.filter(entry => {
         const matchesSite = siteFilter === 'All Sites' || entry.siteName === siteFilter;
         const matchesStatus = statusFilter === 'All' || entry.status === statusFilter;
+        const matchesRevenueSource = revenueSourceFilter === 'All Sources' || entry.revenueSource === revenueSourceFilter;
         const matchesDateFrom = !dateFrom || entry.dateSubmitted >= dateFrom;
         const matchesDateTo = !dateTo || entry.dateSubmitted <= dateTo;
-        return matchesSite && matchesStatus && matchesDateFrom && matchesDateTo;
+        return matchesSite && matchesStatus && matchesRevenueSource && matchesDateFrom && matchesDateTo;
     });
+
+    // Get unique site names for filter
+    const siteNames = ['All Sites', ...new Set(entries.map(e => e.siteName))];
+
+    const isLoading = loadingProduction || loadingSales || loadingMines;
+
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600">Loading revenue data...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gray-50 p-8">
@@ -126,7 +289,7 @@ export default function RevenueManagement() {
                         {/* Page Title */}
                         <div className="mb-8">
                             <h1 className="text-3xl font-bold text-gray-900">Revenue Management</h1>
-                            <p className="text-gray-600 mt-2">Oversee, validate, and manage mining revenue submissions from all sites.</p>
+                            <p className="text-gray-600 mt-2">Oversee, validate, and manage mining revenue from all sites.</p>
                         </div>
 
                         {/* Filters & Actions Bar */}
@@ -139,11 +302,19 @@ export default function RevenueManagement() {
                                         onChange={(e) => setSiteFilter(e.target.value)}
                                         className="px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                                     >
-                                        <option>All Sites</option>
-                                        <option>Site A</option>
-                                        <option>Site B</option>
-                                        <option>Site C</option>
-                                        <option>Site D</option>
+                                        {siteNames.map(site => (
+                                            <option key={site}>{site}</option>
+                                        ))}
+                                    </select>
+
+                                    <select
+                                        value={revenueSourceFilter}
+                                        onChange={(e) => setRevenueSourceFilter(e.target.value)}
+                                        className="px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                    >
+                                        {revenueSources.map(source => (
+                                            <option key={source}>{source}</option>
+                                        ))}
                                     </select>
 
                                     <select
@@ -179,25 +350,25 @@ export default function RevenueManagement() {
                                 {/* Right Section - Action Buttons */}
                                 <div className="flex gap-3">
                                     <button
-                                        onClick={() => setShowImportModal(true)}
-                                        className="px-5 py-2.5 border-2 border-blue-600 text-blue-600 rounded-xl hover:bg-blue-50 transition flex items-center gap-2 font-medium text-sm"
+                                        onClick={() => setShowAddProductionModal(true)}
+                                        className="px-5 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 transition flex items-center gap-2 font-medium text-sm"
                                     >
-                                        <Upload size={18} />
-                                        Import Data
+                                        <Plus size={18} />
+                                        Add Production
+                                    </button>
+                                    <button
+                                        onClick={() => setShowAddSalesModal(true)}
+                                        className="px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition flex items-center gap-2 font-medium text-sm"
+                                    >
+                                        <Plus size={18} />
+                                        Add Sales
                                     </button>
                                     <button
                                         onClick={() => setShowExportModal(true)}
                                         className="px-5 py-2.5 border-2 border-blue-600 text-blue-600 rounded-xl hover:bg-blue-50 transition flex items-center gap-2 font-medium text-sm"
                                     >
                                         <Download size={18} />
-                                        Export Data
-                                    </button>
-                                    <button
-                                        onClick={() => setShowAddSourceModal(true)}
-                                        className="px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition flex items-center gap-2 font-medium text-sm"
-                                    >
-                                        <Plus size={18} />
-                                        Add Revenue Source
+                                        Export
                                     </button>
                                 </div>
                             </div>
@@ -212,69 +383,77 @@ export default function RevenueManagement() {
                                             <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Site Name</th>
                                             <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Revenue Source</th>
                                             <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Amount (RWF)</th>
-                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Date Submitted</th>
+                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Date</th>
                                             <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Status</th>
                                             <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Submitted By</th>
                                             <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-200">
-                                        {filteredEntries.map((entry) => (
-                                            <tr key={entry.id} className="hover:bg-gray-50 transition">
-                                                <td className="px-6 py-4">
-                                                    <span className="font-medium text-gray-900">{entry.siteName}</span>
-                                                </td>
-                                                <td className="px-6 py-4 text-gray-600">{entry.revenueSource}</td>
-                                                <td className="px-6 py-4">
-                                                    <span className="font-semibold text-gray-900">{formatCurrency(entry.amount)}</span>
-                                                </td>
-                                                <td className="px-6 py-4 text-gray-600">
-                                                    {new Date(entry.dateSubmitted).toLocaleDateString('en-US', {
-                                                        year: 'numeric',
-                                                        month: 'short',
-                                                        day: 'numeric'
-                                                    })}
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <span className={`px-3 py-1.5 rounded-full text-xs font-medium border ${getStatusColor(entry.status)}`}>
-                                                        {entry.status}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 text-gray-600">{entry.submittedBy}</td>
-                                                <td className="px-6 py-4">
-                                                    <div className="flex items-center gap-2">
-                                                        <button
-                                                            onClick={() => {
-                                                                setSelectedEntry(entry);
-                                                                setShowViewModal(true);
-                                                            }}
-                                                            className="p-2 hover:bg-gray-100 rounded-lg transition"
-                                                            title="View"
-                                                        >
-                                                            <Eye size={18} className="text-blue-600" />
-                                                        </button>
-                                                        {entry.status === 'Pending Review' && (
-                                                            <>
-                                                                <button
-                                                                    onClick={() => handleApprove(entry)}
-                                                                    className="p-2 hover:bg-green-50 rounded-lg transition"
-                                                                    title="Approve"
-                                                                >
-                                                                    <Check size={18} className="text-green-600" />
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleReject(entry)}
-                                                                    className="p-2 hover:bg-red-50 rounded-lg transition"
-                                                                    title="Reject"
-                                                                >
-                                                                    <X size={18} className="text-red-600" />
-                                                                </button>
-                                                            </>
-                                                        )}
-                                                    </div>
+                                        {filteredEntries.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                                                    No revenue entries found
                                                 </td>
                                             </tr>
-                                        ))}
+                                        ) : (
+                                            filteredEntries.map((entry) => (
+                                                <tr key={entry.id} className="hover:bg-gray-50 transition">
+                                                    <td className="px-6 py-4">
+                                                        <span className="font-medium text-gray-900">{entry.siteName}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-gray-600">{entry.revenueSource}</td>
+                                                    <td className="px-6 py-4">
+                                                        <span className="font-semibold text-gray-900">{formatCurrency(entry.amount)}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-gray-600">
+                                                        {new Date(entry.dateSubmitted).toLocaleDateString('en-US', {
+                                                            year: 'numeric',
+                                                            month: 'short',
+                                                            day: 'numeric'
+                                                        })}
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className={`px-3 py-1.5 rounded-full text-xs font-medium border ${getStatusColor(entry.status)}`}>
+                                                            {entry.status}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-gray-600">{entry.submittedBy}</td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-2">
+                                                            <button
+                                                                onClick={() => {
+                                                                    setSelectedEntry(entry);
+                                                                    setShowViewModal(true);
+                                                                }}
+                                                                className="p-2 hover:bg-gray-100 rounded-lg transition"
+                                                                title="View"
+                                                            >
+                                                                <Eye size={18} className="text-blue-600" />
+                                                            </button>
+                                                            {entry.status === 'Pending Review' && (
+                                                                <>
+                                                                    <button
+                                                                        onClick={() => handleApprove(entry)}
+                                                                        className="p-2 hover:bg-green-50 rounded-lg transition"
+                                                                        title="Approve"
+                                                                    >
+                                                                        <Check size={18} className="text-green-600" />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleReject(entry)}
+                                                                        className="p-2 hover:bg-red-50 rounded-lg transition"
+                                                                        title="Reject"
+                                                                    >
+                                                                        <X size={18} className="text-red-600" />
+                                                                    </button>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
                                     </tbody>
                                 </table>
                             </div>
@@ -303,12 +482,22 @@ export default function RevenueManagement() {
                                 AI Revenue Alerts
                             </h3>
                             <div className="space-y-3 mb-4">
-                                {sampleAlerts.map((alert) => (
-                                    <div key={alert.id} className="flex items-start gap-3 p-3 bg-yellow-50 rounded-xl border border-yellow-200">
-                                        <AlertTriangle size={18} className="text-yellow-600 mt-0.5 flex-shrink-0" />
-                                        <p className="text-sm text-gray-700">{alert.message}</p>
+                                {entries
+                                    .filter(e => e.status === 'Rejected')
+                                    .slice(0, 3)
+                                    .map((entry) => (
+                                        <div key={entry.id} className="flex items-start gap-3 p-3 bg-red-50 rounded-xl border border-red-200">
+                                            <AlertTriangle size={18} className="text-red-600 mt-0.5 flex-shrink-0" />
+                                            <p className="text-sm text-gray-700">
+                                                {entry.revenueSource} from {entry.siteName} requires review
+                                            </p>
+                                        </div>
+                                    ))}
+                                {entries.filter(e => e.status === 'Rejected').length === 0 && (
+                                    <div className="text-center text-gray-500 text-sm py-4">
+                                        No alerts at this time
                                     </div>
-                                ))}
+                                )}
                             </div>
                             <button className="w-full px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition font-medium text-sm flex items-center justify-center gap-2">
                                 View All Alerts
@@ -319,77 +508,199 @@ export default function RevenueManagement() {
                 </div>
             </div>
 
-            {/* Add Revenue Source Modal */}
-            {showAddSourceModal && (
+            {/* Add Production Modal */}
+            {showAddProductionModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6">
                         <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-2xl font-bold text-gray-900">Add Revenue Source</h2>
-                            <button onClick={() => setShowAddSourceModal(false)} className="p-1 hover:bg-gray-100 rounded-lg">
+                            <h2 className="text-2xl font-bold text-gray-900">Add Production Record</h2>
+                            <button onClick={() => setShowAddProductionModal(false)} className="p-1 hover:bg-gray-100 rounded-lg">
                                 <X size={24} />
                             </button>
                         </div>
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Source Name</label>
-                                <input
-                                    type="text"
-                                    value={sourceForm.name}
-                                    onChange={(e) => setSourceForm({ ...sourceForm, name: e.target.value })}
-                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    placeholder="e.g., Tin Export"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Revenue Category</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Mine Site</label>
                                 <select
-                                    value={sourceForm.category}
-                                    onChange={(e) => setSourceForm({ ...sourceForm, category: e.target.value })}
+                                    value={productionForm.mineId || ''}
+                                    onChange={(e) => {
+                                        const selectedId = Number(e.target.value);
+                                        const selectedMine = mineCompanies.find(m => m.id === selectedId);
+                                        setProductionForm({
+                                            ...productionForm,
+                                            mineId: selectedId,
+                                            mineName: selectedMine?.name || ''
+                                        });
+                                    }}
                                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 >
-                                    <option value="">Select Category</option>
-                                    <option>Mineral Export</option>
-                                    <option>Processing Fees</option>
-                                    <option>Licensing Fees</option>
-                                    <option>Royalties</option>
+                                    <option value="">Select Mine Site</option>
+                                    {mineCompanies.map((mine) => (
+                                        <option key={mine.id} value={mine.id}>
+                                            {mine.name} - {mine.location}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Default Expected Range</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Production Date</label>
                                 <input
-                                    type="text"
-                                    value={sourceForm.expectedRange}
-                                    onChange={(e) => setSourceForm({ ...sourceForm, expectedRange: e.target.value })}
+                                    type="date"
+                                    value={productionForm.date}
+                                    onChange={(e) => setProductionForm({ ...productionForm, date: e.target.value })}
                                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    placeholder="e.g., 10M - 50M RWF"
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                                <textarea
-                                    value={sourceForm.description}
-                                    onChange={(e) => setSourceForm({ ...sourceForm, description: e.target.value })}
-                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px]"
-                                    placeholder="Brief description of the revenue source..."
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Quantity Produced</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    value={productionForm.quantity_produced}
+                                    onChange={(e) => setProductionForm({ ...productionForm, quantity_produced: parseFloat(e.target.value) })}
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="0.00"
                                 />
                             </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Unit Price (RWF)</label>
+                                <input
+                                    type="number"
+                                    step="1000"
+                                    value={productionForm.unit_price}
+                                    onChange={(e) => setProductionForm({ ...productionForm, unit_price: parseFloat(e.target.value) })}
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="0"
+                                />
+                            </div>
+                            {productionForm.quantity_produced > 0 && productionForm.unit_price > 0 && (
+                                <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                                    <p className="text-sm text-gray-600">Estimated Revenue:</p>
+                                    <p className="text-xl font-bold text-blue-700">
+                                        {formatCurrency(productionForm.quantity_produced * productionForm.unit_price)}
+                                    </p>
+                                </div>
+                            )}
                         </div>
                         <div className="flex gap-3 mt-6">
                             <button
-                                onClick={() => setShowAddSourceModal(false)}
+                                onClick={() => setShowAddProductionModal(false)}
                                 className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition font-medium"
                             >
                                 Cancel
                             </button>
                             <button
-                                onClick={() => {
-                                    alert('Revenue source added!');
-                                    setShowAddSourceModal(false);
-                                    setSourceForm({ name: '', category: '', expectedRange: '', description: '' });
-                                }}
-                                className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition font-medium"
+                                onClick={handleCreateProduction}
+                                disabled={creatingProduction}
+                                className="flex-1 px-4 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                Save Source
+                                {creatingProduction ? 'Creating...' : 'Save Production'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add Sales Modal */}
+            {showAddSalesModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6">
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-2xl font-bold text-gray-900">Add Sales Transaction</h2>
+                            <button onClick={() => setShowAddSalesModal(false)} className="p-1 hover:bg-gray-100 rounded-lg">
+                                <X size={24} />
+                            </button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Mine Site</label>
+                                <select
+                                    value={salesForm.mineId || ''}
+                                    onChange={(e) => {
+                                        const selectedId = Number(e.target.value);
+                                        const selectedMine = mineCompanies.find(m => m.id === selectedId);
+                                        setSalesForm({
+                                            ...salesForm,
+                                            mineId: selectedId,
+                                            mineName: selectedMine?.name || ''
+                                        });
+                                    }}
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="">Select Mine Site</option>
+                                    {mineCompanies.map((mine) => (
+                                        <option key={mine.id} value={mine.id}>
+                                            {mine.name} - {mine.location}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Sale Date</label>
+                                <input
+                                    type="date"
+                                    value={salesForm.date}
+                                    onChange={(e) => setSalesForm({ ...salesForm, date: e.target.value })}
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Quantity Sold</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    value={salesForm.quantity}
+                                    onChange={(e) => setSalesForm({ ...salesForm, quantity: parseFloat(e.target.value) })}
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="0.00"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Unit Price (RWF)</label>
+                                <input
+                                    type="number"
+                                    step="1000"
+                                    value={salesForm.unit_price}
+                                    onChange={(e) => setSalesForm({ ...salesForm, unit_price: parseFloat(e.target.value) })}
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="0"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
+                                <select
+                                    value={salesForm.payment_method}
+                                    onChange={(e) => setSalesForm({ ...salesForm, payment_method: e.target.value })}
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="Bank Transfer">Bank Transfer</option>
+                                    <option value="Cash">Cash</option>
+                                    <option value="Mobile Money">Mobile Money</option>
+                                    <option value="Check">Check</option>
+                                </select>
+                            </div>
+                            {salesForm.quantity > 0 && salesForm.unit_price > 0 && (
+                                <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                                    <p className="text-sm text-gray-600">Total Amount:</p>
+                                    <p className="text-xl font-bold text-blue-700">
+                                        {formatCurrency(salesForm.quantity * salesForm.unit_price)}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                onClick={() => setShowAddSalesModal(false)}
+                                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition font-medium"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleCreateSales}
+                                disabled={creatingSales}
+                                className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {creatingSales ? 'Creating...' : 'Save Sales'}
                             </button>
                         </div>
                     </div>
@@ -421,7 +732,7 @@ export default function RevenueManagement() {
                                     <p className="text-lg font-semibold text-gray-900">{formatCurrency(selectedEntry.amount)}</p>
                                 </div>
                                 <div className="bg-gray-50 rounded-xl p-4">
-                                    <p className="text-sm text-gray-600 mb-1">Date Submitted</p>
+                                    <p className="text-sm text-gray-600 mb-1">Date</p>
                                     <p className="text-lg font-semibold text-gray-900">
                                         {new Date(selectedEntry.dateSubmitted).toLocaleDateString('en-US', {
                                             year: 'numeric',
@@ -441,14 +752,22 @@ export default function RevenueManagement() {
                                     </span>
                                 </div>
                             </div>
-                            <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-                                <p className="text-sm text-gray-600 mb-2">Evidence Document</p>
-                                <button className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium">
-                                    <FileText size={18} />
-                                    {selectedEntry.evidenceDoc}
-                                    <Download size={16} />
-                                </button>
-                            </div>
+                            {selectedEntry.description && (
+                                <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                                    <p className="text-sm text-gray-600 mb-1">Additional Info</p>
+                                    <p className="text-gray-900">{selectedEntry.description}</p>
+                                </div>
+                            )}
+                            {selectedEntry.evidenceDoc && (
+                                <div className="bg-green-50 rounded-xl p-4 border border-green-200">
+                                    <p className="text-sm text-gray-600 mb-2">Evidence Document</p>
+                                    <button className="flex items-center gap-2 text-green-600 hover:text-green-700 font-medium">
+                                        <FileText size={18} />
+                                        {selectedEntry.evidenceDoc}
+                                        <Download size={16} />
+                                    </button>
+                                </div>
+                            )}
                         </div>
                         <div className="flex gap-3 mt-6">
                             {selectedEntry.status === 'Pending Review' && (
@@ -526,51 +845,6 @@ export default function RevenueManagement() {
                 </div>
             )}
 
-            {/* Import Revenue Data Modal */}
-            {showImportModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6">
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-2xl font-bold text-gray-900">Import Revenue Data</h2>
-                            <button onClick={() => setShowImportModal(false)} className="p-1 hover:bg-gray-100 rounded-lg">
-                                <X size={24} />
-                            </button>
-                        </div>
-                        <div className="space-y-4">
-                            <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-500 transition cursor-pointer">
-                                <Upload size={48} className="mx-auto text-gray-400 mb-3" />
-                                <p className="text-gray-700 font-medium mb-1">Click to upload or drag and drop</p>
-                                <p className="text-sm text-gray-500">CSV or Excel files (max 10MB)</p>
-                            </div>
-                            <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-                                <p className="text-sm text-gray-700 mb-2">Need a template?</p>
-                                <button className="text-blue-600 hover:text-blue-700 font-medium text-sm flex items-center gap-2">
-                                    <Download size={16} />
-                                    Download Import Template
-                                </button>
-                            </div>
-                        </div>
-                        <div className="flex gap-3 mt-6">
-                            <button
-                                onClick={() => setShowImportModal(false)}
-                                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition font-medium"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={() => {
-                                    alert('Data imported successfully!');
-                                    setShowImportModal(false);
-                                }}
-                                className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition font-medium"
-                            >
-                                Import Data
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {/* Export Data Modal */}
             {showExportModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -584,8 +858,8 @@ export default function RevenueManagement() {
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Select Sites</label>
-                                <div className="space-y-2">
-                                    {['Site A', 'Site B', 'Site C', 'Site D'].map((site) => (
+                                <div className="space-y-2 max-h-40 overflow-y-auto">
+                                    {siteNames.filter(s => s !== 'All Sites').map((site) => (
                                         <label key={site} className="flex items-center gap-2 cursor-pointer">
                                             <input
                                                 type="checkbox"
@@ -609,11 +883,13 @@ export default function RevenueManagement() {
                                     <input
                                         type="date"
                                         className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        onChange={(e) => setDateFrom(e.target.value)}
                                     />
                                     <span className="text-gray-400">to</span>
                                     <input
                                         type="date"
                                         className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        onChange={(e) => setDateTo(e.target.value)}
                                     />
                                 </div>
                             </div>
@@ -644,7 +920,32 @@ export default function RevenueManagement() {
                             </button>
                             <button
                                 onClick={() => {
-                                    alert(`Exporting data as ${exportForm.format}...`);
+                                    // Filter entries based on selected criteria
+                                    const dataToExport = filteredEntries.filter(entry =>
+                                        exportForm.sites.length === 0 || exportForm.sites.includes(entry.siteName)
+                                    );
+
+                                    // Create CSV content
+                                    const csvContent = [
+                                        ['Site Name', 'Revenue Source', 'Amount', 'Date', 'Status', 'Submitted By'],
+                                        ...dataToExport.map(entry => [
+                                            entry.siteName,
+                                            entry.revenueSource,
+                                            entry.amount.toString(),
+                                            entry.dateSubmitted,
+                                            entry.status,
+                                            entry.submittedBy
+                                        ])
+                                    ].map(row => row.join(',')).join('\n');
+
+                                    // Download file
+                                    const blob = new Blob([csvContent], { type: 'text/csv' });
+                                    const url = window.URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = `revenue-export-${new Date().toISOString().split('T')[0]}.csv`;
+                                    a.click();
+
                                     setShowExportModal(false);
                                 }}
                                 className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition font-medium flex items-center justify-center gap-2"

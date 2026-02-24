@@ -63,7 +63,7 @@ const miningApi = apiSlice.injectEndpoints({
         }),
         getSalesTransactions: builder.query({
             query: () => ({
-                url: "mining/sales/",
+                url: "revenue/transactions/",
                 method: "GET",
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('access')}`,
