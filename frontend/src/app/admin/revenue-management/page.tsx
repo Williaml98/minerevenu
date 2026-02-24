@@ -28,11 +28,7 @@ interface RevenueEntry {
     recordId: number;
 }
 
-// interface Alert {
-//     id: string;
-//     message: string;
-//     type: 'warning' | 'error' | 'info';
-// }
+// Removed unused Alert interface
 
 interface ProductionFormData {
     mineId: number | null;
@@ -51,11 +47,44 @@ interface SalesFormData {
     payment_method: string;
 }
 
+// Define proper types for API responses
+interface ProductionRecord {
+    id: number;
+    date: string;
+    quantity_produced: number;
+    unit_price: number;
+    total_revenue: number;
+    mine: number;
+}
+
+interface SalesTransaction {
+    id: number;
+    date: string;
+    quantity: number;
+    unit_price: number;
+    total_amount: number;
+    payment_method: string;
+    is_flagged: boolean;
+    created_at: string;
+    mine: number;
+    created_by: number;
+}
+
+interface MineCompany {
+    id: number;
+    name: string;
+    location: string;
+    license_number: string;
+    mineral_type: string;
+    status: string;
+    created_at: string;
+}
+
 export default function RevenueManagement() {
-    // RTK Query hooks
-    const { data: productionRecords = [], isLoading: loadingProduction } = useGetProductionRecordsQuery({});
-    const { data: salesTransactions = [], isLoading: loadingSales } = useGetSalesTransactionsQuery({});
-    const { data: mineCompanies = [], isLoading: loadingMines } = useGetMineCompaniesQuery({});
+    // RTK Query hooks with proper types
+    const { data: productionRecords = [], isLoading: loadingProduction } = useGetProductionRecordsQuery({}) as { data: ProductionRecord[], isLoading: boolean };
+    const { data: salesTransactions = [], isLoading: loadingSales } = useGetSalesTransactionsQuery({}) as { data: SalesTransaction[], isLoading: boolean };
+    const { data: mineCompanies = [], isLoading: loadingMines } = useGetMineCompaniesQuery({}) as { data: MineCompany[], isLoading: boolean };
 
     const [createProductionRecord, { isLoading: creatingProduction }] = useCreateProductionRecordMutation();
     const [createSalesTransaction, { isLoading: creatingSales }] = useCreateSalesTransactionMutation();
@@ -74,7 +103,6 @@ export default function RevenueManagement() {
     const [showViewModal, setShowViewModal] = useState(false);
     const [showApproveModal, setShowApproveModal] = useState(false);
     const [showRejectModal, setShowRejectModal] = useState(false);
-    const [] = useState(false);
     const [showExportModal, setShowExportModal] = useState(false);
     const [selectedEntry, setSelectedEntry] = useState<RevenueEntry | null>(null);
     const [actionType, setActionType] = useState<'approve' | 'reject'>('approve');
@@ -109,8 +137,8 @@ export default function RevenueManagement() {
             const combined: RevenueEntry[] = [];
 
             // Transform production records
-            productionRecords.forEach((record: any) => {
-                const mine = mineCompanies.find((m: any) => m.id === record.mine);
+            productionRecords.forEach((record: ProductionRecord) => {
+                const mine = mineCompanies.find((m: MineCompany) => m.id === record.mine);
                 combined.push({
                     id: `prod-${record.id}`,
                     siteName: mine?.name || `Mine #${record.mine}`,
@@ -126,8 +154,8 @@ export default function RevenueManagement() {
             });
 
             // Transform sales transactions
-            salesTransactions.forEach((sale: any) => {
-                const mine = mineCompanies.find(m => m.id === sale.mine);
+            salesTransactions.forEach((sale: SalesTransaction) => {
+                const mine = mineCompanies.find((m: MineCompany) => m.id === sale.mine);
                 combined.push({
                     id: `sales-${sale.id}`,
                     siteName: mine?.name || `Mine #${sale.mine}`,
@@ -525,7 +553,7 @@ export default function RevenueManagement() {
                                     value={productionForm.mineId || ''}
                                     onChange={(e) => {
                                         const selectedId = Number(e.target.value);
-                                        const selectedMine = mineCompanies.find(m => m.id === selectedId);
+                                        const selectedMine = mineCompanies.find((m: MineCompany) => m.id === selectedId);
                                         setProductionForm({
                                             ...productionForm,
                                             mineId: selectedId,
@@ -535,7 +563,7 @@ export default function RevenueManagement() {
                                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 >
                                     <option value="">Select Mine Site</option>
-                                    {mineCompanies.map((mine) => (
+                                    {mineCompanies.map((mine: MineCompany) => (
                                         <option key={mine.id} value={mine.id}>
                                             {mine.name} - {mine.location}
                                         </option>
@@ -618,7 +646,7 @@ export default function RevenueManagement() {
                                     value={salesForm.mineId || ''}
                                     onChange={(e) => {
                                         const selectedId = Number(e.target.value);
-                                        const selectedMine = mineCompanies.find(m => m.id === selectedId);
+                                        const selectedMine = mineCompanies.find((m: MineCompany) => m.id === selectedId);
                                         setSalesForm({
                                             ...salesForm,
                                             mineId: selectedId,
@@ -628,7 +656,7 @@ export default function RevenueManagement() {
                                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 >
                                     <option value="">Select Mine Site</option>
-                                    {mineCompanies.map((mine) => (
+                                    {mineCompanies.map((mine: MineCompany) => (
                                         <option key={mine.id} value={mine.id}>
                                             {mine.name} - {mine.location}
                                         </option>
