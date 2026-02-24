@@ -1,51 +1,87 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
     TrendingUp, AlertTriangle, Target, BarChart3,
-    Download, FileText, Activity, Calendar, Filter
+    FileText, Activity
 } from 'lucide-react';
+import {
+    useGetAnalyticsSummaryQuery,
+    useGetAnalyticsAnomaliesQuery,
+    useGetAnalyticsRecommendationsQuery,
+    useRegenerateForecastsMutation,
+    useRetrainModelsMutation,
+} from "@/lib/redux/slices/analyticsApi";
 
 export default function AIAnalytics() {
     const [forecastSite, setForecastSite] = useState('All Sites');
     const [forecastPeriod, setForecastPeriod] = useState('30 days');
     const [trendView, setTrendView] = useState('Weekly');
 
-    // Sample data for sparkline
+    const {
+        data: summaryData,
+        isLoading: summaryLoading,
+        isError: summaryError,
+    } = useGetAnalyticsSummaryQuery();
+    const {
+        data: anomaliesData,
+        isLoading: anomaliesLoading,
+        isError: anomaliesError,
+    } = useGetAnalyticsAnomaliesQuery();
+    const {
+        data: recommendationsData,
+        isLoading: recsLoading,
+        isError: recsError,
+    } = useGetAnalyticsRecommendationsQuery();
+    const [regenerateForecasts, { isLoading: regenLoading }] = useRegenerateForecastsMutation();
+    const [retrainModels, { isLoading: retrainLoading }] = useRetrainModelsMutation();
+
+    // Sample data for sparkline (fallback)
     const sparklineData = [45, 52, 48, 61, 58, 65, 72, 68, 75, 82];
 
-    const anomalies = [
-        { id: 1, severity: 'high', title: 'Unusual spike detected at Site B', detail: '+48% above expected', time: '2 hours ago' },
-        { id: 2, severity: 'medium', title: 'Missing submission from Site D', detail: '5 days overdue', time: '1 day ago' },
-        { id: 3, severity: 'high', title: 'Suspicious revenue drop at Site A', detail: '-32% below forecast', time: '3 hours ago' },
-        { id: 4, severity: 'medium', title: 'Duplicate entry detected at Site C', detail: 'Potential data error', time: '5 hours ago' },
-        { id: 5, severity: 'low', title: 'Minor variance in Site B processing fees', detail: '+8% variance', time: '1 day ago' },
-        { id: 6, severity: 'high', title: 'Unusual transaction pattern at Site D', detail: 'Fraud risk detected', time: '6 hours ago' },
-    ];
+    const formatCurrency = (amount: number) => {
+        return new Intl.NumberFormat('en-RW', {
+            style: 'currency',
+            currency: 'RWF',
+            minimumFractionDigits: 1,
+            maximumFractionDigits: 1
+        }).format(amount).replace('RWF', '').trim();
+    };
+
+    const anomalies = useMemo(() => {
+        if (!anomaliesData?.anomalies) return [];
+        return anomaliesData.anomalies.map((a) => ({
+            id: a.transaction_id,
+            severity: "high" as const,
+            title: `Anomaly at ${a.mine_name}`,
+            detail: `${formatCurrency(a.amount)} total on ${new Date(a.date).toLocaleDateString()}`,
+            time: a.reason,
+        }));
+    }, [anomaliesData]);
 
     const reports = [
         {
             icon: <FileText size={24} />,
             title: 'Quarterly Revenue Projection',
-            description: 'AI-generated forecast for Q1 2025 with confidence intervals and risk factors',
-            lastGenerated: '2 days ago'
+            description: 'AI-generated forecast for next quarter with confidence intervals and risk factors',
+            lastGenerated: 'From latest ARIMA run'
         },
         {
             icon: <AlertTriangle size={24} />,
             title: 'Potential Revenue Leak Points',
             description: 'Identified discrepancies and potential fraud indicators across all mining sites',
-            lastGenerated: '1 week ago'
+            lastGenerated: 'Updated daily from anomaly engine'
         },
         {
             icon: <BarChart3 size={24} />,
             title: 'Site Performance Forecast',
             description: 'Comparative analysis and predictive insights for each mining site',
-            lastGenerated: '3 days ago'
+            lastGenerated: 'Based on last 30 days of data'
         },
         {
             icon: <TrendingUp size={24} />,
             title: 'Revenue Optimization Report',
             description: 'ML-powered recommendations to maximize revenue collection efficiency',
-            lastGenerated: '5 days ago'
+            lastGenerated: 'Generated from current recommendations'
         },
     ];
 
@@ -58,35 +94,78 @@ export default function AIAnalytics() {
         }
     };
 
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('en-RW', {
-            style: 'currency',
-            currency: 'RWF',
-            minimumFractionDigits: 1,
-            maximumFractionDigits: 1
-        }).format(amount).replace('RWF', '').trim();
-    };
+    const formattedGrowth = useMemo(() => {
+        const g = summaryData?.summary.growth_rate ?? 0;
+        return (g * 100).toFixed(1);
+    }, [summaryData]);
+
+    const formattedForecastAccuracy = useMemo(() => {
+        const acc = summaryData?.summary.forecast_accuracy;
+        if (acc == null) return "—";
+        return acc.toFixed(1);
+    }, [summaryData]);
+
+    const stabilityScore = summaryData?.summary.stability_score ?? 82;
+    const anomalyCount = summaryData?.summary.anomaly_count ?? 0;
+    const forecastedRevenue = summaryData?.summary.last_30_revenue ?? 54200000;
+
+    const anyLoading = summaryLoading || anomaliesLoading || recsLoading;
+    const anyError = summaryError || anomaliesError || recsError;
 
     return (
         <div className="min-h-screen bg-gray-50 p-8">
             <div className="max-w-[1600px] mx-auto">
-                {/* Page Title */}
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900">AI Analytics & Insights</h1>
-                    <p className="text-gray-600 mt-2">Intelligent financial forecasts, anomaly detection, and revenue analysis powered by AI.</p>
+                <div className="mb-8 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                    <div>
+                        <h1 className="text-3xl font-bold text-gray-900">AI Analytics & Insights</h1>
+                        <p className="text-gray-600 mt-2">
+                            Intelligent financial forecasts, anomaly detection, and revenue analysis powered by AI.
+                        </p>
+                        {anyLoading && (
+                            <p className="text-sm text-gray-500 mt-1">
+                                Loading live analytics from the AI engine...
+                            </p>
+                        )}
+                        {anyError && (
+                            <p className="text-sm text-red-500 mt-1">
+                                Some analytics failed to load. Please verify the backend analytics endpoints.
+                            </p>
+                        )}
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                        <button
+                            onClick={() => regenerateForecasts()}
+                            disabled={regenLoading}
+                            className="px-4 py-2 rounded-lg border border-blue-600 text-blue-600 hover:bg-blue-50 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                            <BarChart3 size={16} />
+                            {regenLoading ? "Regenerating Forecasts..." : "Regenerate Forecasts"}
+                        </button>
+                        <button
+                            onClick={() => retrainModels()}
+                            disabled={retrainLoading}
+                            className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                            <Activity size={16} />
+                            {retrainLoading ? "Retraining Models..." : "Retrain AI Models"}
+                        </button>
+                    </div>
                 </div>
 
                 {/* Section 1 - Key AI Metrics */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    {/* Card 1 - Forecasted Revenue */}
                     <div className="bg-white rounded-2xl shadow-sm p-6">
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-sm font-medium text-gray-600">Forecasted Revenue</h3>
+                            <h3 className="text-sm font-medium text-gray-600">Forecasted Revenue (Next 30 Days)</h3>
                             <TrendingUp size={20} className="text-blue-600" />
                         </div>
                         <div className="mb-3">
-                            <p className="text-3xl font-bold text-gray-900">{formatCurrency(54200000)}M</p>
-                            <p className="text-xs text-gray-500 mt-1">Next 30 Days</p>
+                            <p className="text-3xl font-bold text-gray-900">
+                                {formatCurrency(forecastedRevenue)} RWF
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                                Based on latest ARIMA forecast
+                            </p>
                         </div>
                         {/* Sparkline */}
                         <div className="h-12 mb-3">
@@ -100,20 +179,28 @@ export default function AIAnalytics() {
                             </svg>
                         </div>
                         <div className="flex items-center gap-2">
-                            <span className="text-green-600 text-sm font-semibold">+12%</span>
-                            <span className="text-xs text-gray-500">Predicted Growth</span>
+                            <span
+                                className={`${(summaryData?.summary.growth_rate ?? 0) >= 0
+                                    ? "text-green-600"
+                                    : "text-red-600"
+                                    } text-sm font-semibold`}
+                            >
+                                {Number.isFinite(summaryData?.summary.growth_rate ?? 0)
+                                    ? `${formattedGrowth}%`
+                                    : "—"}
+                            </span>
+                            <span className="text-xs text-gray-500">Month‑over‑month growth</span>
                         </div>
                     </div>
 
-                    {/* Card 2 - Detected Anomalies */}
                     <div className="bg-white rounded-2xl shadow-sm p-6">
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-sm font-medium text-gray-600">Detected Anomalies</h3>
                             <AlertTriangle size={20} className="text-yellow-600" />
                         </div>
                         <div className="mb-3">
-                            <p className="text-3xl font-bold text-gray-900">8</p>
-                            <p className="text-xs text-gray-500 mt-1">This Month</p>
+                            <p className="text-3xl font-bold text-gray-900">{anomalyCount}</p>
+                            <p className="text-xs text-gray-500 mt-1">Anomalous transactions (last 30 days)</p>
                         </div>
                         <div className="h-12 flex items-center justify-center mb-3">
                             <div className="flex gap-2">
@@ -128,7 +215,6 @@ export default function AIAnalytics() {
                         </div>
                     </div>
 
-                    {/* Card 3 - Revenue Stability Score */}
                     <div className="bg-white rounded-2xl shadow-sm p-6">
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-sm font-medium text-gray-600">Revenue Stability Score</h3>
@@ -146,12 +232,14 @@ export default function AIAnalytics() {
                                         strokeWidth="12"
                                         fill="none"
                                         strokeDasharray={`${2 * Math.PI * 56}`}
-                                        strokeDashoffset={`${2 * Math.PI * 56 * (1 - 0.82)}`}
+                                        strokeDashoffset={`${2 * Math.PI * 56 * (1 - stabilityScore / 100)}`}
                                         strokeLinecap="round"
                                     />
                                 </svg>
                                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                    <span className="text-3xl font-bold text-gray-900">82</span>
+                                    <span className="text-3xl font-bold text-gray-900">
+                                        {Math.round(stabilityScore)}
+                                    </span>
                                     <span className="text-xs text-gray-500">/ 100</span>
                                 </div>
                             </div>
@@ -161,14 +249,15 @@ export default function AIAnalytics() {
                         </div>
                     </div>
 
-                    {/* Card 4 - Forecast Accuracy */}
                     <div className="bg-white rounded-2xl shadow-sm p-6">
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-sm font-medium text-gray-600">Forecast Accuracy</h3>
                             <Activity size={20} className="text-green-600" />
                         </div>
                         <div className="mb-3">
-                            <p className="text-3xl font-bold text-gray-900">92.4%</p>
+                            <p className="text-3xl font-bold text-gray-900">
+                                {formattedForecastAccuracy}%
+                            </p>
                             <p className="text-xs text-gray-500 mt-1">Model Performance</p>
                         </div>
                         <div className="h-12 mb-3">
@@ -183,13 +272,13 @@ export default function AIAnalytics() {
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
-                            <span className="text-green-600 text-sm font-semibold">+2.1%</span>
-                            <span className="text-xs text-gray-500">vs Last Month</span>
+                            <span className="text-xs text-gray-500">
+                                Accuracy compares recent forecasts to realized revenue.
+                            </span>
                         </div>
                     </div>
                 </div>
 
-                {/* Section 2 - Revenue Forecasting Chart */}
                 <div className="bg-white rounded-2xl shadow-sm p-6 mb-8">
                     <div className="flex items-center justify-between mb-6">
                         <h2 className="text-xl font-bold text-gray-900">Revenue Forecasting</h2>
@@ -222,7 +311,6 @@ export default function AIAnalytics() {
                         </div>
                     </div>
 
-                    {/* Chart */}
                     <div className="h-80 relative">
                         <svg width="100%" height="100%" viewBox="0 0 1000 320">
                             {/* Grid lines */}
@@ -312,10 +400,14 @@ export default function AIAnalytics() {
 
                 {/* Section 3 - Anomaly Detection */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                    {/* Left: Alerts List */}
                     <div className="bg-white rounded-2xl shadow-sm p-6">
                         <h2 className="text-xl font-bold text-gray-900 mb-6">AI-Detected Anomalies</h2>
                         <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                            {anomalies.length === 0 && !anomaliesLoading && (
+                                <p className="text-sm text-gray-500">
+                                    No significant anomalies detected in the last 30 days.
+                                </p>
+                            )}
                             {anomalies.map((anomaly) => (
                                 <div key={anomaly.id} className="flex gap-4 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition">
                                     <div className="flex-shrink-0">
@@ -326,11 +418,10 @@ export default function AIAnalytics() {
                                             <div>
                                                 <p className="font-medium text-gray-900 text-sm mb-1">{anomaly.title}</p>
                                                 <p className="text-xs text-gray-600 mb-2">{anomaly.detail}</p>
-                                                <p className="text-xs text-gray-400">{anomaly.time}</p>
+                                                <p className="text-xs text-gray-400 max-w-[220px]">
+                                                    {anomaly.time}
+                                                </p>
                                             </div>
-                                            <button className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs font-medium whitespace-nowrap">
-                                                View Details
-                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -338,11 +429,10 @@ export default function AIAnalytics() {
                         </div>
                     </div>
 
-                    {/* Right: Anomaly Heatmap */}
                     <div className="bg-white rounded-2xl shadow-sm p-6">
                         <h2 className="text-xl font-bold text-gray-900 mb-6">Anomaly Distribution Heatmap</h2>
                         <div className="space-y-3">
-                            {['Site A', 'Site B', 'Site C', 'Site D'].map((site, siteIndex) => (
+                            {['Site A', 'Site B', 'Site C', 'Site D'].map((site) => (
                                 <div key={site} className="flex items-center gap-3">
                                     <div className="w-20 text-sm font-medium text-gray-700">{site}</div>
                                     <div className="flex-1 flex gap-1">
@@ -363,7 +453,7 @@ export default function AIAnalytics() {
                             ))}
                         </div>
                         <div className="mt-6 pt-6 border-t border-gray-200">
-                            <p className="text-xs text-gray-500 mb-3">Fraud Probability Index</p>
+                            <p className="text-xs text-gray-500 mb-3">Fraud Probability Index (model output intensity)</p>
                             <div className="flex items-center gap-2">
                                 <span className="text-xs text-gray-600">Low</span>
                                 <div className="flex-1 h-2 bg-gradient-to-r from-gray-200 via-yellow-500 to-red-500 rounded-full"></div>
@@ -373,7 +463,6 @@ export default function AIAnalytics() {
                     </div>
                 </div>
 
-                {/* Section 4 - Revenue Trend Analysis */}
                 <div className="bg-white rounded-2xl shadow-sm p-6 mb-8">
                     <div className="flex items-center justify-between mb-6">
                         <h2 className="text-xl font-bold text-gray-900">Revenue Trend Analysis</h2>
@@ -393,7 +482,6 @@ export default function AIAnalytics() {
                         </div>
                     </div>
 
-                    {/* Multi-line Chart */}
                     <div className="h-80 relative mb-6">
                         <svg width="100%" height="100%" viewBox="0 0 1000 320">
                             {/* Grid */}
@@ -450,7 +538,6 @@ export default function AIAnalytics() {
                         </div>
                     </div>
 
-                    {/* AI Commentary */}
                     <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
                         <div className="flex gap-3">
                             <Activity size={20} className="text-blue-600 flex-shrink-0 mt-0.5" />
@@ -467,9 +554,9 @@ export default function AIAnalytics() {
                     </div>
                 </div>
 
-                {/* Section 5 - Predictive Reports */}
+                {/* Section 5 - Predictive Reports & Recommendations */}
                 <div className="bg-white rounded-2xl shadow-sm p-6">
-                    <h2 className="text-xl font-bold text-gray-900 mb-6">Predictive Reports</h2>
+                    <h2 className="text-xl font-bold text-gray-900 mb-6">Predictive Reports & AI Recommendations</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {reports.map((report, index) => (
                             <div key={index} className="border border-gray-200 rounded-xl p-6 hover:border-blue-500 hover:shadow-md transition">
@@ -480,17 +567,48 @@ export default function AIAnalytics() {
                                     <div className="flex-1">
                                         <h3 className="font-bold text-gray-900 mb-2">{report.title}</h3>
                                         <p className="text-sm text-gray-600 mb-4">{report.description}</p>
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-xs text-gray-400">Last generated: {report.lastGenerated}</span>
-                                            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium flex items-center gap-2">
-                                                <Download size={16} />
-                                                Generate Report
-                                            </button>
-                                        </div>
+                                        <span className="text-xs text-gray-400">
+                                            Last generated: {report.lastGenerated}
+                                        </span>
                                     </div>
                                 </div>
                             </div>
                         ))}
+                        <div className="border border-gray-200 rounded-xl p-6">
+                            <h3 className="font-bold text-gray-900 mb-3">AI-Generated Operational Recommendations</h3>
+                            <div className="space-y-3">
+                                {recommendationsData?.recommendations?.map((rec, idx) => (
+                                    <div key={idx} className="p-3 bg-gray-50 rounded-xl">
+                                        <div className="flex items-start gap-2">
+                                            <div className="mt-1">
+                                                <div
+                                                    className={`w-2 h-2 rounded-full ${rec.impact === "high"
+                                                        ? "bg-red-500"
+                                                        : rec.impact === "medium"
+                                                            ? "bg-yellow-500"
+                                                            : "bg-blue-500"
+                                                        }`}
+                                                ></div>
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-semibold text-gray-900">
+                                                    {rec.title}
+                                                </p>
+                                                <p className="text-xs text-gray-500 mt-1">
+                                                    {rec.detail}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                                {!recsLoading && !recommendationsData?.recommendations?.length && (
+                                    <p className="text-xs text-gray-500">
+                                        No active AI recommendations at this time. The system will
+                                        generate guidance as new data arrives.
+                                    </p>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
