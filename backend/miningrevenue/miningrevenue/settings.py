@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "analytics",
     "mining",
     "revenue",
+    "communication",
     "corsheaders",
 ]
 

@@ -8,6 +8,7 @@ urlpatterns = [
     path("api/auth/", include("authapi.urls")),
     path("api/analytics/", include("analytics.urls")),
     path("api/mining/", include("mining.urls")),
-    path("api/revenue/", include("revenue.urls")),  
+    path("api/revenue/", include("revenue.urls")), 
+    path('api/', include('communication.urls')), 
     path("api/", include("AuditLog.urls")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
