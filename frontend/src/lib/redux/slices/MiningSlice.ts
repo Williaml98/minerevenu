@@ -43,6 +43,15 @@ const miningApi = apiSlice.injectEndpoints({
                 },
             }),
         }),
+        getForecast: builder.query({
+            query: () => ({
+                url: `analytics/generate-forecast/`,
+                method: "GET",
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('access')}`,
+                },
+            }),
+        }),
         getMineCompanies: builder.query({
             query: () => ({
                 url: "mining/mines/",
@@ -78,6 +87,7 @@ export const {
     useCreateProductionRecordMutation,
     useCreateSalesTransactionMutation,
     useGenerateForecastMutation,
+    useGetForecastQuery,
     useGetMineCompaniesQuery,
     useGetProductionRecordsQuery,
     useGetSalesTransactionsQuery,
