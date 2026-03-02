@@ -19,7 +19,6 @@ from .serializers import (
 )
 from .permissions import (
     IsAdmin,
-    IsAdminOrStakeholderOrOfficer,
     IsOfficer,
     IsStakeholder,
 )
@@ -32,6 +31,7 @@ logger = logging.getLogger(__name__)
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
+    throttle_scope = "login"
 
     def perform_create(self, serializer):
         user = serializer.save()
@@ -121,6 +121,7 @@ class AdminUserCreateView(generics.CreateAPIView):
 
 class MyTokenObtainView(APIView):
     permission_classes = [permissions.AllowAny]
+    throttle_scope = "login"
 
     def post(self, request):
         email = request.data.get("email")
@@ -256,6 +257,7 @@ class ProfileUpdateView(generics.UpdateAPIView):
 
 class ForgotPasswordView(APIView):
     permission_classes = [permissions.AllowAny]
+    throttle_scope = "password_reset"
 
     def post(self, request):
         email = request.data.get("email")
@@ -344,6 +346,7 @@ class ForgotPasswordView(APIView):
 
 class ResetPasswordView(APIView):
     permission_classes = [permissions.AllowAny]
+    throttle_scope = "password_reset"
 
     def post(self, request):
         uid = request.data.get("uid")
@@ -423,7 +426,7 @@ class UserListView(generics.ListAPIView):
 
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsAdminOrStakeholderOrOfficer]
+    permission_classes = [permissions.IsAuthenticated, IsAdmin]
 
     def get(self, request, *args, **kwargs):
         # Log user list access
@@ -440,7 +443,7 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsAdminOrStakeholderOrOfficer]
+    permission_classes = [permissions.IsAuthenticated, IsAdmin]
 
     def _get_changed_fields(self, old_data, new_data):
         """Helper to identify changed fields"""

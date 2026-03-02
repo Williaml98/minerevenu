@@ -10,6 +10,7 @@ class AuditLogListView(generics.ListAPIView):
     queryset = AuditLog.objects.all().select_related('user', 'target_user')
     serializer_class = AuditLogSerializer
     permission_classes = [permissions.IsAuthenticated, IsAdmin]
+    throttle_scope = "audit"
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['action', 'user', 'target_user']
     ordering_fields = ['timestamp', 'action']

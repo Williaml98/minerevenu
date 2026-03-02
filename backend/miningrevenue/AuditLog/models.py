@@ -15,6 +15,12 @@ class AuditLog(models.Model):
         ('PASSWORD_RESET_COMPLETE', 'Password reset completed'),
         ('PROFILE_UPDATE', 'Profile updated'),
         ('PERMISSION_CHANGE', 'User permissions changed'),
+        ('EMAIL_SEND_FAILURE', 'Email send failure'),
+        ('USER_LIST_ACCESS', 'User list accessed'),
+        ('USER_DETAIL_ACCESS', 'User detail accessed'),
+        ('SECURITY_INCIDENT_CREATE', 'Security incident created'),
+        ('SECURITY_INCIDENT_STATUS_UPDATE', 'Security incident status updated'),
+        ('COMPLIANCE_POLICY_UPDATE', 'Compliance policy updated'),
     ]
 
     user = models.ForeignKey(get_user_model(), on_delete=models.SET_NULL, null=True, blank=True, related_name='actions')

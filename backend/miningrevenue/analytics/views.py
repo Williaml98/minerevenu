@@ -12,9 +12,10 @@ from ml.anomaly import detect_anomalies, train_anomaly_model
 from .models import RevenueForecast
 from revenue.models import SalesTransaction
 from .serializers import RevenueForecastSerializer
+from authapi.permissions import IsAdmin
 
 class GenerateForecastAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsAdmin]
 
     def get(self, request):
         predictions = forecast_next_steps(6)
@@ -303,7 +304,7 @@ class TrainModelsAPIView(APIView):
     Intended to be called by admins from the AI Analytics dashboard.
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsAdmin]
 
     def post(self, request):
         forecast_metrics = train_forecasting_model()
