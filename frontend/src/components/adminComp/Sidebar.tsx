@@ -4,9 +4,11 @@ import {
     Home,
     Users,
     BarChart3,
-    Ship,
+    BrainCircuit,
+    FileText,
     Shield,
-    AlertTriangle,
+    Cloud,
+    MessageSquare,
     LogOut,
     Settings,
     Menu,
@@ -36,12 +38,12 @@ const items = [
     {
         title: " AI Analytics & Insights",
         url: "/admin/ai-analytics",
-        icon: Ship,
+        icon: BrainCircuit,
     },
     {
         title: "Report Center",
         url: "/admin/report-center",
-        icon: Shield,
+        icon: FileText,
     },
     {
         title: "Security & Compliance",
@@ -51,16 +53,16 @@ const items = [
     {
         title: "Cloud & Storage",
         url: "/admin/cloud-storage",
-        icon: Shield,
+        icon: Cloud,
     },
     {
         title: "Communication & Feedback",
-        url: "/admin/system-alert",
-        icon: AlertTriangle,
+        url: "/admin/collaboration_hub",
+        icon: MessageSquare,
     },
     {
         title: "Profile & settings",
-        url: "/admin/settings",
+        url: "/admin/setting",
         icon: Settings,
     },
 ];

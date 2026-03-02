@@ -4,11 +4,13 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
     TrendingUp, AlertTriangle, DollarSign, Activity,
     Bell, Clock, MapPin, Package, PieChart, RefreshCw,
-    Filter, Download, Eye, Shield, Users, Database
+    Filter, Download, Eye, Shield, Users, Database, ChevronRight,
+    BarChart3, Wallet, Truck, Gauge, Target, Zap, Award, Calendar
 } from 'lucide-react';
 import {
     XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, Cell, BarChart, Bar, AreaChart, Area,
+    PieChart as RePieChart, Pie, Legend
 } from 'recharts';
 import { useGetAuditLogsQuery } from "@/lib/redux/slices/AuditLogSlice";
 import {
@@ -83,6 +85,7 @@ interface StatCardProps {
         positive: boolean;
     };
     subtitle?: string;
+    trend?: number;
 }
 
 interface Alert {
@@ -151,6 +154,26 @@ type DateFilter = 'today' | 'week' | 'month' | 'year';
 
 const COLORS = ['#F6B500', '#3B82F6', '#10B981', '#EF4444', '#8B5CF6', '#EC4899'];
 const EMPTY_ARRAY: unknown[] = [];
+
+// ==================== Helper Functions ====================
+
+const formatCurrency = (value: number): string => {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'RWF',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+        notation: 'compact',
+        compactDisplay: 'short'
+    }).format(value);
+};
+
+const formatNumber = (value: number): string => {
+    return new Intl.NumberFormat('en-US', {
+        notation: 'compact',
+        compactDisplay: 'short'
+    }).format(value);
+};
 
 // ==================== Component ====================
 
@@ -388,44 +411,75 @@ export default function AdminDashboard() {
         return [`$${numValue.toFixed(1)}K`, 'Revenue'];
     };
 
-    // Stat Card Component
-    const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, gradient, change, subtitle }) => (
-        <div className={`rounded-2xl p-6 shadow-lg ${gradient} text-white relative overflow-hidden group hover:shadow-xl transition-all duration-300`}>
-            <div className="absolute top-0 right-0 opacity-10 group-hover:scale-110 transition-transform duration-300">
-                <Icon size={120} />
+    // Professional Stat Card Component
+    const StatCard: React.FC<StatCardProps> = ({ title, value, icon: Icon, gradient, change, subtitle, trend }) => (
+        <div className={`rounded-xl p-4 shadow-lg ${gradient} text-white relative overflow-hidden group hover:shadow-xl transition-all duration-300`}>
+            {/* Background Pattern */}
+            <div className="absolute inset-0 opacity-10">
+                <div className="absolute -right-4 -top-4 w-24 h-24 rounded-full bg-white/20"></div>
+                <div className="absolute -right-2 -bottom-2 w-16 h-16 rounded-full bg-white/20"></div>
             </div>
+            
+            {/* Content */}
             <div className="relative z-10">
-                <div className="flex items-center justify-between mb-3">
-                    <Icon size={32} className="opacity-90" />
+                <div className="flex items-start justify-between mb-2">
+                    <div className="p-2 bg-white/20 rounded-lg">
+                        <Icon size={20} className="text-white" />
+                    </div>
                     {change && (
-                        <span className={`text-sm font-medium px-3 py-1 rounded-full flex items-center gap-1
-                            ${change.positive ? 'bg-green-500/20 text-green-100' : 'bg-red-500/20 text-red-100'}`}>
+                        <span className={`text-xs font-medium px-2 py-1 rounded-full flex items-center gap-1
+                            ${change.positive ? 'bg-green-500/30 text-green-50' : 'bg-red-500/30 text-red-50'}`}>
                             {change.positive ? '↑' : '↓'} {change.value}
                         </span>
                     )}
                 </div>
-                <h3 className="text-3xl font-bold mb-1">
-                    {typeof value === 'number' && title.includes('Revenue')
-                        ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value)
-                        : value}
-                </h3>
-                <p className="text-sm opacity-90 font-medium">{title}</p>
-                {subtitle && <p className="text-xs opacity-75 mt-2">{subtitle}</p>}
+                
+                <div className="mt-2">
+                    <h3 className="text-lg font-bold mb-0.5 truncate">
+                        {typeof value === 'number' && title.includes('Revenue')
+                            ? formatCurrency(value)
+                            : typeof value === 'number' && (title.includes('Production') || title.includes('Avg'))
+                            ? formatNumber(value) + (title.includes('Avg') ? '' : ' t')
+                            : value}
+                    </h3>
+                    <p className="text-xs font-medium text-white/80 truncate">{title}</p>
+                    {subtitle && (
+                        <p className="text-[10px] text-white/60 mt-1 truncate flex items-center gap-1">
+                            <Calendar size={10} />
+                            {subtitle}
+                        </p>
+                    )}
+                </div>
+
+                {/* Trend Indicator */}
+                {trend !== undefined && (
+                    <div className="mt-2 pt-2 border-t border-white/20">
+                        <div className="flex items-center gap-1">
+                            <div className="flex-1 h-1 bg-white/20 rounded-full overflow-hidden">
+                                <div 
+                                    className="h-full bg-white rounded-full" 
+                                    style={{ width: `${Math.min(trend, 100)}%` }}
+                                />
+                            </div>
+                            <span className="text-[10px] font-medium text-white/80">{trend}%</span>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
 
     const getStatusBadge = (status: ActivityItem['status']): React.ReactElement => {
         const badges = {
-            completed: { bg: 'bg-green-100', text: 'text-green-700', label: '✅ Completed', icon: '✓' },
-            review: { bg: 'bg-amber-100', text: 'text-amber-700', label: '⚠️ Review', icon: '⚠️' },
-            done: { bg: 'bg-blue-100', text: 'text-blue-700', label: '📊 Done', icon: '📊' },
-            success: { bg: 'bg-emerald-100', text: 'text-emerald-700', label: '✨ Success', icon: '✨' },
-            pending: { bg: 'bg-gray-100', text: 'text-gray-700', label: '⏳ Pending', icon: '⏳' }
+            completed: { bg: 'bg-green-100', text: 'text-green-700', label: 'Completed', icon: '✓' },
+            review: { bg: 'bg-amber-100', text: 'text-amber-700', label: 'Review', icon: '⚠️' },
+            done: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Done', icon: '📊' },
+            success: { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'Success', icon: '✨' },
+            pending: { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Pending', icon: '⏳' }
         };
         const badge = badges[status] || badges.completed;
         return (
-            <span className={`${badge.bg} ${badge.text} px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1`}>
+            <span className={`${badge.bg} ${badge.text} px-2 py-0.5 rounded-full text-[10px] font-medium flex items-center gap-1`}>
                 <span>{badge.icon}</span>
                 <span>{badge.label}</span>
             </span>
@@ -433,28 +487,36 @@ export default function AdminDashboard() {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
-            <div className="max-w-[1800px] mx-auto space-y-6">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 md:p-6">
+            <div className="max-w-[1600px] mx-auto space-y-5">
                 {/* Header Section */}
-                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-white rounded-xl shadow-sm p-4 border border-slate-200">
                     <div>
-                        <h1 className="text-4xl font-bold text-gray-900 mb-2">Mining Operations Dashboard</h1>
-                        <p className="text-lg text-gray-600 flex items-center gap-2">
-                            <Database size={18} className="text-blue-500" />
-                            Real-time insights from {dashboardData.activeMines} active mines •
-                            Last updated: {lastUpdated ? lastUpdated.toLocaleTimeString() : '--:--:--'}
-                        </p>
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-amber-100 rounded-lg">
+                                <Database size={24} className="text-amber-600" />
+                            </div>
+                            <div>
+                                <h1 className="text-2xl font-bold text-slate-900">Mining Operations</h1>
+                                <p className="text-sm text-slate-500 flex items-center gap-2">
+                                    <span>Real-time insights from {dashboardData.activeMines} active mines</span>
+                                    <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
+                                    <span>Updated: {lastUpdated ? lastUpdated.toLocaleTimeString() : '--:--:--'}</span>
+                                </p>
+                            </div>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-3 flex-wrap">
-                        <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm border border-gray-200">
-                            <Activity size={18} className="text-green-500 animate-pulse" />
-                            <span className="text-sm font-medium text-gray-700">Live Data Feed</span>
+                    
+                    <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
+                        <div className="flex items-center gap-2 bg-green-50 px-3 py-1.5 rounded-lg border border-green-200">
+                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                            <span className="text-xs font-medium text-green-700">Live</span>
                         </div>
 
                         <select
                             value={selectedSite}
                             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedSite(e.target.value)}
-                            className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg shadow-sm text-sm font-medium cursor-pointer hover:border-gray-400 transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            className="bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-sm cursor-pointer hover:border-amber-300 transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500/20"
                         >
                             <option value="all">All Sites</option>
                             {companies.map((company: MiningCompany) => (
@@ -465,7 +527,7 @@ export default function AdminDashboard() {
                         <select
                             value={dateFilter}
                             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setDateFilter(e.target.value as DateFilter)}
-                            className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg shadow-sm text-sm font-medium cursor-pointer hover:border-gray-400 transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            className="bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-sm cursor-pointer hover:border-amber-300 transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500/20"
                         >
                             <option value="today">Today</option>
                             <option value="week">This Week</option>
@@ -476,120 +538,183 @@ export default function AdminDashboard() {
                         <button
                             onClick={refreshData}
                             disabled={isRefreshing}
-                            className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg shadow-sm font-medium flex items-center gap-2 transition-colors disabled:opacity-50"
+                            className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors disabled:opacity-50 shadow-sm"
                         >
-                            <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
-                            {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
+                            <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
+                            {isRefreshing ? 'Refreshing...' : 'Refresh'}
                         </button>
                     </div>
                 </div>
 
-                {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                {/* Stats Cards - Optimized Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                     <StatCard
                         title="Total Revenue"
                         value={dashboardData.totalRevenue}
                         icon={DollarSign}
-                        gradient="bg-gradient-to-br from-amber-500 to-yellow-600"
+                        gradient="bg-gradient-to-br from-amber-500 to-amber-600"
                         change={{ value: '+12.3%', positive: true }}
                         subtitle="Last 30 days"
+                        trend={78}
                     />
                     <StatCard
-                        title="Total Production"
-                        value={`${dashboardData.totalProduction.toFixed(1)} tons`}
+                        title="Production"
+                        value={dashboardData.totalProduction}
                         icon={Package}
-                        gradient="bg-gradient-to-br from-blue-500 to-indigo-600"
+                        gradient="bg-gradient-to-br from-blue-500 to-blue-600"
                         change={{ value: '+8.1%', positive: true }}
+                        subtitle="Total tons"
+                        trend={65}
                     />
                     <StatCard
                         title="Active Mines"
                         value={dashboardData.activeMines}
                         icon={MapPin}
-                        gradient="bg-gradient-to-br from-green-500 to-emerald-600"
-                        subtitle={`${companies.length} total registered`}
+                        gradient="bg-gradient-to-br from-emerald-500 to-emerald-600"
+                        subtitle={`${companies.length} registered`}
+                        trend={100}
                     />
                     <StatCard
                         title="AI Forecast"
                         value={`${dashboardData.forecastAccuracy}%`}
                         icon={TrendingUp}
-                        gradient="bg-gradient-to-br from-purple-500 to-pink-600"
+                        gradient="bg-gradient-to-br from-purple-500 to-purple-600"
                         change={{ value: '+2.4%', positive: true }}
-                        subtitle="Next quarter prediction"
+                        subtitle="Next quarter"
+                        trend={94}
                     />
                     <StatCard
-                        title="Avg Unit Price"
-                        value={new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(dashboardData.avgUnitPrice)}
+                        title="Avg Price"
+                        value={dashboardData.avgUnitPrice}
                         icon={Activity}
-                        gradient="bg-gradient-to-br from-red-500 to-rose-600"
+                        gradient="bg-gradient-to-br from-rose-500 to-rose-600"
                         subtitle="Per ton"
+                        trend={45}
                     />
                     <StatCard
-                        title="Flagged Txns"
+                        title="Flagged"
                         value={dashboardData.flaggedTransactions}
                         icon={AlertTriangle}
-                        gradient="bg-gradient-to-br from-orange-500 to-red-600"
+                        gradient="bg-gradient-to-br from-red-500 to-red-600"
                         change={{ value: dashboardData.flaggedTransactions > 0 ? '+2' : '0', positive: false }}
+                        subtitle="Need review"
+                        trend={dashboardData.flaggedTransactions > 0 ? 25 : 0}
                     />
                 </div>
 
+                {/* Quick Stats Row */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="bg-white rounded-lg p-3 border border-slate-200 flex items-center gap-3">
+                        <div className="p-2 bg-indigo-50 rounded-lg">
+                            <Truck size={18} className="text-indigo-500" />
+                        </div>
+                        <div>
+                            <p className="text-xs text-slate-500">Total Sales</p>
+                            <p className="text-sm font-bold text-slate-900">{dashboardData.totalSales} transactions</p>
+                        </div>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 border border-slate-200 flex items-center gap-3">
+                        <div className="p-2 bg-amber-50 rounded-lg">
+                            <Gauge size={18} className="text-amber-500" />
+                        </div>
+                        <div>
+                            <p className="text-xs text-slate-500">Efficiency</p>
+                            <p className="text-sm font-bold text-slate-900">87.5%</p>
+                        </div>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 border border-slate-200 flex items-center gap-3">
+                        <div className="p-2 bg-green-50 rounded-lg">
+                            <Target size={18} className="text-green-500" />
+                        </div>
+                        <div>
+                            <p className="text-xs text-slate-500">Forecasts</p>
+                            <p className="text-sm font-bold text-slate-900">{dashboardData.totalForecasts} active</p>
+                        </div>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 border border-slate-200 flex items-center gap-3">
+                        <div className="p-2 bg-purple-50 rounded-lg">
+                            <Award size={18} className="text-purple-500" />
+                        </div>
+                        <div>
+                            <p className="text-xs text-slate-500">Audit Logs</p>
+                            <p className="text-sm font-bold text-slate-900">{formatNumber(dashboardData.totalAuditLogs)}</p>
+                        </div>
+                    </div>
+                </div>
+
                 {/* Charts Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                     {/* Revenue Trend Chart */}
-                    <div className="bg-white rounded-2xl shadow-lg p-6">
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
                         <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-xl font-bold text-gray-900">Revenue Trend (Last 7 Days)</h2>
                             <div className="flex items-center gap-2">
-                                <button className="p-2 hover:bg-gray-100 rounded-lg transition">
-                                    <Download size={18} className="text-gray-600" />
+                                <BarChart3 size={20} className="text-amber-500" />
+                                <h2 className="text-lg font-semibold text-slate-900">Revenue Trend</h2>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button className="p-1.5 hover:bg-slate-100 rounded-lg transition">
+                                    <Download size={16} className="text-slate-400" />
                                 </button>
-                                <Filter size={18} className="text-gray-400" />
+                                <Filter size={16} className="text-slate-400" />
                             </div>
                         </div>
-                        <ResponsiveContainer width="100%" height={300}>
+                        <ResponsiveContainer width="100%" height={280}>
                             <AreaChart data={dashboardData.revenueChartData.slice(-7)}>
                                 <defs>
                                     <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#F6B500" stopOpacity={0.8} />
-                                        <stop offset="95%" stopColor="#F6B500" stopOpacity={0.1} />
+                                        <stop offset="5%" stopColor="#F6B500" stopOpacity={0.3} />
+                                        <stop offset="95%" stopColor="#F6B500" stopOpacity={0} />
                                     </linearGradient>
                                 </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                                <XAxis dataKey="date" stroke="#6B7280" />
-                                <YAxis stroke="#6B7280" tickFormatter={(value: number) => `$${value}K`} />
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} />
+                                <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={(value: number) => `${value}K`} />
                                 <Tooltip
                                     formatter={revenueTooltipFormatter}
-                                    contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb' }}
+                                    contentStyle={{ 
+                                        backgroundColor: '#fff', 
+                                        borderRadius: '8px', 
+                                        border: '1px solid #e2e8f0',
+                                        boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                                    }}
                                 />
                                 <Area
                                     type="monotone"
                                     dataKey="revenue"
                                     stroke="#F6B500"
-                                    strokeWidth={3}
+                                    strokeWidth={2}
                                     fill="url(#revenueGradient)"
-                                    dot={{ fill: '#F6B500', r: 4 }}
-                                    activeDot={{ r: 6 }}
+                                    dot={{ fill: '#F6B500', r: 3 }}
+                                    activeDot={{ r: 5 }}
                                 />
                             </AreaChart>
                         </ResponsiveContainer>
                     </div>
 
                     {/* Production Trend Chart */}
-                    <div className="bg-white rounded-2xl shadow-lg p-6">
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
                         <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-xl font-bold text-gray-900">Production Output (Tons)</h2>
                             <div className="flex items-center gap-2">
-                                <Eye size={18} className="text-gray-400" />
+                                <Package size={20} className="text-blue-500" />
+                                <h2 className="text-lg font-semibold text-slate-900">Production Output</h2>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Eye size={16} className="text-slate-400" />
                             </div>
                         </div>
-                        <ResponsiveContainer width="100%" height={300}>
+                        <ResponsiveContainer width="100%" height={280}>
                             <BarChart data={dashboardData.productionChartData.slice(-7)}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                                <XAxis dataKey="date" stroke="#6B7280" />
-                                <YAxis stroke="#6B7280" />
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} />
+                                <YAxis stroke="#94a3b8" fontSize={12} />
                                 <Tooltip
-                                    contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb' }}
+                                    contentStyle={{ 
+                                        backgroundColor: '#fff', 
+                                        borderRadius: '8px', 
+                                        border: '1px solid #e2e8f0' 
+                                    }}
                                 />
-                                <Bar dataKey="quantity" fill="#3B82F6" radius={[4, 4, 0, 0]}>
+                                <Bar dataKey="quantity" radius={[4, 4, 0, 0]}>
                                     {dashboardData.productionChartData.map((_, index) => (
                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                     ))}
@@ -600,36 +725,36 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Bottom Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
                     {/* AI Alerts */}
-                    <div className="lg:col-span-1 bg-white rounded-2xl shadow-lg p-6">
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                                <Bell className="text-amber-500" size={24} />
-                                AI Alerts
-                            </h2>
-                            <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold">
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                                <Bell size={20} className="text-amber-500" />
+                                <h2 className="text-lg font-semibold text-slate-900">AI Alerts</h2>
+                            </div>
+                            <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-medium">
                                 {alerts.filter(a => a.type === 'critical').length} Critical
                             </span>
                         </div>
 
-                        <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                        <div className="space-y-2 max-h-[380px] overflow-y-auto">
                             {alerts.map((alert) => (
                                 <div
                                     key={alert.id}
-                                    className={`p-4 rounded-xl border-l-4 transition-all hover:shadow-md cursor-pointer
+                                    className={`p-3 rounded-lg border-l-4 transition-all hover:shadow-md cursor-pointer
                                         ${alert.type === 'critical' ? 'bg-red-50 border-red-500 hover:bg-red-100' :
                                             alert.type === 'warning' ? 'bg-amber-50 border-amber-500 hover:bg-amber-100' :
                                                 alert.type === 'success' ? 'bg-green-50 border-green-500 hover:bg-green-100' :
                                                     'bg-blue-50 border-blue-500 hover:bg-blue-100'}`}
                                 >
-                                    <div className="flex items-start gap-3">
-                                        <span className="text-2xl">{alert.icon}</span>
-                                        <div className="flex-1">
-                                            <p className="text-sm font-semibold text-gray-900 mb-1">{alert.message}</p>
+                                    <div className="flex items-start gap-2">
+                                        <span className="text-lg">{alert.icon}</span>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-medium text-slate-900 mb-1 line-clamp-2">{alert.message}</p>
                                             <div className="flex items-center justify-between">
-                                                <span className="text-xs text-gray-500">{alert.time}</span>
-                                                <span className="text-xs font-medium px-2 py-1 rounded bg-white/50">
+                                                <span className="text-[10px] text-slate-500">{alert.time}</span>
+                                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-white/70">
                                                     {alert.category}
                                                 </span>
                                             </div>
@@ -639,36 +764,36 @@ export default function AdminDashboard() {
                             ))}
                         </div>
 
-                        <button className="w-full mt-4 bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
-                            <Bell size={18} />
+                        <button className="w-full mt-3 text-sm text-amber-600 hover:text-amber-700 font-medium py-2 flex items-center justify-center gap-1 border-t border-slate-200 pt-3">
                             View All Alerts
+                            <ChevronRight size={16} />
                         </button>
                     </div>
 
                     {/* Site Performance */}
-                    <div className="lg:col-span-1 bg-white rounded-2xl shadow-lg p-6">
-                        <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                            <PieChart className="text-blue-500" size={24} />
-                            Site Performance
-                        </h2>
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                        <div className="flex items-center gap-2 mb-4">
+                            <PieChart size={20} className="text-blue-500" />
+                            <h2 className="text-lg font-semibold text-slate-900">Site Performance</h2>
+                        </div>
 
-                        <div className="space-y-4">
-                            {dashboardData.sitePerformance.map((site) => {
+                        <div className="space-y-3">
+                            {dashboardData.sitePerformance.slice(0, 5).map((site) => {
                                 const maxRevenue = Math.max(...dashboardData.sitePerformance.map(s => s.revenue));
                                 return (
                                     <div key={site.id} className="group">
-                                        <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center justify-between mb-1">
                                             <div className="flex items-center gap-2">
-                                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: site.color }} />
-                                                <span className="text-sm font-medium text-gray-700">{site.name}</span>
+                                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: site.color }} />
+                                                <span className="text-xs font-medium text-slate-700">{site.name}</span>
                                             </div>
-                                            <span className="text-sm font-bold text-gray-900">
-                                                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(site.revenue)}
+                                            <span className="text-xs font-bold text-slate-900">
+                                                {formatCurrency(site.revenue)}
                                             </span>
                                         </div>
-                                        <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                                             <div
-                                                className="h-full rounded-full transition-all duration-500 group-hover:opacity-80"
+                                                className="h-full rounded-full transition-all duration-500"
                                                 style={{
                                                     width: `${(site.revenue / maxRevenue) * 100}%`,
                                                     backgroundColor: site.color
@@ -676,8 +801,8 @@ export default function AdminDashboard() {
                                             />
                                         </div>
                                         <div className="flex justify-between mt-1">
-                                            <span className="text-xs text-gray-500">Production: {site.production.toFixed(1)}t</span>
-                                            <span className="text-xs text-gray-500">Sales: {site.sales}</span>
+                                            <span className="text-[10px] text-slate-500">{site.production.toFixed(1)}t</span>
+                                            <span className="text-[10px] text-slate-500">{site.sales} sales</span>
                                         </div>
                                     </div>
                                 );
@@ -685,14 +810,14 @@ export default function AdminDashboard() {
                         </div>
 
                         {/* Payment Methods */}
-                        <div className="mt-6 pt-6 border-t border-gray-200">
-                            <h3 className="text-sm font-semibold text-gray-700 mb-3">Payment Methods</h3>
-                            <div className="space-y-2">
+                        <div className="mt-4 pt-4 border-t border-slate-200">
+                            <h3 className="text-xs font-semibold text-slate-700 mb-3">Payment Methods</h3>
+                            <div className="grid grid-cols-2 gap-2">
                                 {dashboardData.paymentMethodData.map((method) => (
-                                    <div key={method.name} className="flex items-center justify-between text-sm">
-                                        <span className="text-gray-600">{method.name}</span>
-                                        <span className="font-medium text-gray-900">
-                                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(method.value)}
+                                    <div key={method.name} className="flex items-center justify-between text-xs">
+                                        <span className="text-slate-600">{method.name}</span>
+                                        <span className="font-medium text-slate-900">
+                                            {formatCurrency(method.value)}
                                         </span>
                                     </div>
                                 ))}
@@ -701,34 +826,33 @@ export default function AdminDashboard() {
                     </div>
 
                     {/* Recent Activities */}
-                    <div className="lg:col-span-1 bg-white rounded-2xl shadow-lg p-6">
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                                <Clock className="text-blue-500" size={24} />
-                                Recent Activities
-                            </h2>
-                            <select className="bg-gray-100 border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-sm">
-                                <option>All Types</option>
-                                <option>Audit Logs</option>
-                                <option>Transactions</option>
-                                <option>System Events</option>
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                                <Clock size={20} className="text-blue-500" />
+                                <h2 className="text-lg font-semibold text-slate-900">Activities</h2>
+                            </div>
+                            <select className="bg-slate-50 border border-slate-200 text-slate-700 px-2 py-1 rounded-lg text-xs">
+                                <option>All</option>
+                                <option>Audit</option>
+                                <option>System</option>
                             </select>
                         </div>
 
-                        <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                        <div className="space-y-2 max-h-[380px] overflow-y-auto">
                             {activities.map((activity) => (
-                                <div key={activity.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition">
-                                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-                                        {activity.type === 'audit' ? <Shield size={16} className="text-blue-500" /> :
-                                            activity.type === 'user' ? <Users size={16} className="text-green-500" /> :
-                                                <Activity size={16} className="text-amber-500" />}
+                                <div key={activity.id} className="flex items-start gap-2 p-2 rounded-lg hover:bg-slate-50 transition">
+                                    <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+                                        {activity.type === 'audit' ? <Shield size={12} className="text-blue-500" /> :
+                                            activity.type === 'user' ? <Users size={12} className="text-green-500" /> :
+                                                <Activity size={12} className="text-amber-500" />}
                                     </div>
-                                    <div className="flex-1">
-                                        <p className="text-sm font-medium text-gray-900">{activity.activity}</p>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <span className="text-xs text-gray-500">{activity.user}</span>
-                                            <span className="text-xs text-gray-400">•</span>
-                                            <span className="text-xs text-gray-500">{activity.time}</span>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-medium text-slate-900 truncate">{activity.activity}</p>
+                                        <div className="flex items-center gap-1 mt-0.5">
+                                            <span className="text-[10px] text-slate-500">{activity.user}</span>
+                                            <span className="text-[10px] text-slate-300">•</span>
+                                            <span className="text-[10px] text-slate-500">{activity.time}</span>
                                         </div>
                                     </div>
                                     {getStatusBadge(activity.status)}
@@ -736,33 +860,33 @@ export default function AdminDashboard() {
                             ))}
                         </div>
 
-                        <div className="mt-4 pt-4 border-t border-gray-200">
-                            <button className="w-full text-blue-600 hover:text-blue-700 font-semibold text-sm flex items-center justify-center gap-2">
+                        <div className="mt-3 pt-3 border-t border-slate-200">
+                            <button className="w-full text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center justify-center gap-1">
                                 View All Activities
-                                <span>→</span>
+                                <ChevronRight size={14} />
                             </button>
                         </div>
                     </div>
                 </div>
 
                 {/* Forecast Preview */}
-                <div className="bg-white rounded-2xl shadow-lg p-6">
-                    <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                        <TrendingUp className="text-purple-500" size={24} />
-                        AI Revenue Forecast
-                    </h2>
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                    <div className="flex items-center gap-2 mb-4">
+                        <TrendingUp size={20} className="text-purple-500" />
+                        <h2 className="text-lg font-semibold text-slate-900">AI Revenue Forecast</h2>
+                    </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                         {forecasts.slice(0, 6).map((forecast: Forecast) => (
-                            <div key={forecast.id} className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-4 border border-purple-100">
-                                <p className="text-xs text-gray-600 mb-1">Forecast Date</p>
-                                <p className="text-sm font-bold text-gray-900 mb-2">
+                            <div key={forecast.id} className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg p-3 border border-purple-100">
+                                <p className="text-[10px] text-slate-600 mb-1">Forecast</p>
+                                <p className="text-xs font-bold text-slate-900 mb-2">
                                     {new Date(forecast.forecast_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                                 </p>
-                                <p className="text-lg font-bold text-purple-600">
-                                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(forecast.predicted_revenue)}
+                                <p className="text-sm font-bold text-purple-600">
+                                    {formatCurrency(forecast.predicted_revenue)}
                                 </p>
-                                <p className="text-xs text-gray-500 mt-2">v{forecast.model_version}</p>
+                                <p className="text-[8px] text-slate-500 mt-2">v{forecast.model_version}</p>
                             </div>
                         ))}
                     </div>
@@ -770,9 +894,9 @@ export default function AdminDashboard() {
 
                 {/* Loading Indicator */}
                 {(auditLoading || companiesLoading || productionLoading || salesLoading || forecastLoading) && (
-                    <div className="fixed bottom-4 right-4 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
-                        <RefreshCw size={16} className="animate-spin" />
-                        <span>Loading real-time data...</span>
+                    <div className="fixed bottom-4 right-4 bg-blue-600 text-white px-3 py-2 rounded-lg shadow-lg flex items-center gap-2 text-sm">
+                        <RefreshCw size={14} className="animate-spin" />
+                        <span>Loading data...</span>
                     </div>
                 )}
             </div>
