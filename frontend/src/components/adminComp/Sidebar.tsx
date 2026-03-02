@@ -7,7 +7,6 @@ import {
     BrainCircuit,
     FileText,
     Shield,
-    Cloud,
     MessageSquare,
     LogOut,
     Settings,
@@ -49,11 +48,6 @@ const items = [
         title: "Security & Compliance",
         url: "/admin/security-compliance",
         icon: Shield,
-    },
-    {
-        title: "Cloud & Storage",
-        url: "/admin/cloud-storage",
-        icon: Cloud,
     },
     {
         title: "Communication & Feedback",

@@ -44,10 +44,9 @@ const miningApi = apiSlice.injectEndpoints({
             }),
         }),
         getForecast: builder.query({
-            query: (data) => ({
+            query: () => ({
                 url: `analytics/generate-forecast/`,
                 method: "GET",
-                body: data,
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('access')}`,
                 },
