@@ -32,7 +32,7 @@ const items = [
         icon: BarChart3,
     },
     {
-        title: " Reports",
+        title: "Reports",
         url: "/stakeholder/reports",
         icon: Ship,
     },
@@ -135,7 +135,7 @@ export default function Sidebar() {
                                 <li key={item.title}>
                                     <Link
                                         href={item.url}
-                                        className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${pathname === item.url
+                                        className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${pathname === item.url || pathname.startsWith(`${item.url}/`)
                                             ? 'bg-blue-400 text-white'
                                             : 'text-gray-600 hover:bg-gray-200'
                                             }`}

@@ -6,6 +6,13 @@ export const apiSlice = createApi({
     baseQuery: fetchBaseQuery({
         baseUrl: `${process.env.NEXT_PUBLIC_API_URL}/api`,
         prepareHeaders: async (headers) => {
+            if (typeof window !== "undefined") {
+                const accessToken = localStorage.getItem("access");
+                if (accessToken) {
+                    headers.set("Authorization", `Bearer ${accessToken}`);
+                    return headers;
+                }
+            }
             const session = await getSession();
             if (session?.user.token) {
                 headers.set("Authorization", `Bearer ${session.user.token}`);
@@ -13,6 +20,13 @@ export const apiSlice = createApi({
             return headers;
         },
     }),
-    tagTypes: [],
+    tagTypes: [
+        "Mines",
+        "Production",
+        "Sales",
+        "Forecasts",
+        "RevenueSummary",
+        "Analytics",
+    ],
     endpoints: () => ({}),
 });

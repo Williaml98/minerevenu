@@ -7,7 +7,6 @@ import {
     Ship,
     Shield,
     LogOut,
-    Settings,
     Menu,
     X
 } from "lucide-react";
@@ -19,7 +18,7 @@ import Image from "next/image";
 const items = [
     {
         title: "Dashboard",
-        url: "/Officer",
+        url: "/officer",
         icon: Home,
     },
     {
@@ -33,19 +32,14 @@ const items = [
         icon: BarChart3,
     },
     {
-        title: " AI Analytics & Insights",
+        title: "AI Analytics & Insights",
         url: "/officer/ai-analytics",
         icon: Ship,
     },
     {
-        title: "Report",
+        title: "Reports",
         url: "/officer/report",
         icon: Shield,
-    },
-    {
-        title: "Profile & settings",
-        url: "/admin/settings",
-        icon: Settings,
     },
 ];
 
@@ -141,7 +135,7 @@ export default function Sidebar() {
                                 <li key={item.title}>
                                     <Link
                                         href={item.url}
-                                        className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${pathname === item.url
+                                        className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${pathname === item.url || pathname.startsWith(`${item.url}/`)
                                             ? 'bg-blue-400 text-white'
                                             : 'text-gray-600 hover:bg-gray-200'
                                             }`}

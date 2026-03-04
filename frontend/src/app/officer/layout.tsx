@@ -1,7 +1,6 @@
 "use client";
-import { SessionProvider } from "next-auth/react";
-import Navbar from "@/components/stakeholderComp/Navbar";
-import Sidebar from "@/components/stakeholderComp/Sidebar";
+import Navbar from "@/components/officerComp/Navbar";
+import Sidebar from "@/components/officerComp/Sidebar";
 
 
 export default function RootLayout({
@@ -9,14 +8,12 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
 
     return (
-        <SessionProvider>
-            <div className="flex flex-row w-full min-h-screen lg:w-[90%] bg-none">
-                <Sidebar />
-                <div className="flex flex-col ml-auto w-full lg:w-[78%]">
-                    <Navbar onSearch={() => { /* handle search here */ }} />
-                    {children}
-                </div>
+        <div className="flex flex-row w-full min-h-screen bg-none">
+            <Sidebar />
+            <div className="flex flex-col ml-auto w-full lg:w-[calc(100%-280px)]">
+                <Navbar onSearch={() => { }} />
+                {children}
             </div>
-        </SessionProvider>
+        </div>
     );
 }

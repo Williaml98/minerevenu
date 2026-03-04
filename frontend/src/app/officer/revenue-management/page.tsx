@@ -1,139 +1,213 @@
-'use client';
-import React from "react";
+"use client";
 
-export default function RevenueManagementPage() {
+import React, { useMemo, useState } from "react";
+import { toast } from "sonner";
+import {
+    TransactionStatus,
+    useCreateSalesTransactionMutation,
+    useGetMineCompaniesQuery,
+    useGetSalesTransactionsQuery,
+    useUpdateSalesTransactionStatusMutation,
+} from "@/lib/redux/slices/MiningSlice";
+
+const statusStyles: Record<TransactionStatus, string> = {
+    Pending: "bg-amber-100 text-amber-700 border-amber-200",
+    Approved: "bg-emerald-100 text-emerald-700 border-emerald-200",
+    Rejected: "bg-rose-100 text-rose-700 border-rose-200",
+};
+
+function formatCurrency(value: number) {
+    return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+    }).format(value);
+}
+
+export default function OfficerRevenueManagementPage() {
+    const { data: mines = [] } = useGetMineCompaniesQuery({});
+    const { data: transactions = [], isLoading } = useGetSalesTransactionsQuery({});
+    const [createTransaction, { isLoading: creating }] = useCreateSalesTransactionMutation();
+    const [updateStatus, { isLoading: updatingStatus }] = useUpdateSalesTransactionStatusMutation();
+
+    const [form, setForm] = useState({
+        mine: "",
+        date: new Date().toISOString().split("T")[0],
+        quantity: "",
+        unit_price: "",
+        payment_method: "Bank Transfer",
+    });
+
+    const mappedTransactions = useMemo(() => {
+        const mineMap = new Map(mines.map((mine) => [mine.id, mine.name]));
+        return transactions.map((tx) => ({
+            ...tx,
+            mineName: mineMap.get(tx.mine) || `Mine #${tx.mine}`,
+        }));
+    }, [transactions, mines]);
+
+    async function onCreateTransaction() {
+        const mineId = Number(form.mine);
+        const quantity = Number(form.quantity);
+        const unitPrice = Number(form.unit_price);
+
+        if (!mineId || !form.date || quantity <= 0 || unitPrice <= 0) {
+            toast.error("Fill all required fields with valid values.");
+            return;
+        }
+
+        try {
+            await createTransaction({
+                mine: mineId,
+                date: form.date,
+                quantity,
+                unit_price: unitPrice,
+                payment_method: form.payment_method,
+            }).unwrap();
+            toast.success("Revenue transaction created.");
+            setForm({
+                mine: "",
+                date: new Date().toISOString().split("T")[0],
+                quantity: "",
+                unit_price: "",
+                payment_method: "Bank Transfer",
+            });
+        } catch {
+            toast.error("Failed to create transaction.");
+        }
+    }
+
+    async function onStatusChange(id: number, status: TransactionStatus) {
+        try {
+            await updateStatus({ id, status }).unwrap();
+            toast.success(`Transaction marked as ${status}.`);
+        } catch {
+            toast.error("Failed to update status.");
+        }
+    }
+
     return (
-        <div className="p-6 space-y-8 bg-gray-50 min-h-screen">
-            {/* Page Header */}
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-800">
-                        Revenue Management
-                    </h1>
-                    <p className="text-sm text-gray-500">
-                        Manage revenue entries, validate data, and track allocations
-                    </p>
-                </div>
-
-                <button className="px-5 py-2.5 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700">
-                    + Add Revenue Entry
-                </button>
+        <div className="min-h-screen bg-slate-50 p-6 space-y-6">
+            <div>
+                <h1 className="text-2xl font-bold text-slate-900">Revenue Management</h1>
+                <p className="text-sm text-slate-500 mt-1">
+                    Capture transaction data and validate entries for financial transparency.
+                </p>
             </div>
 
-            {/* ================= Add Revenue Entry ================= */}
-            <section>
-                <h2 className="text-lg font-semibold text-gray-700 mb-4">
-                    Add Revenue Entry
-                </h2>
-
-                <div className="bg-white rounded-xl shadow-sm p-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+            <section className="bg-white border border-slate-200 rounded-xl p-5">
+                <h2 className="text-lg font-semibold text-slate-900 mb-4">Add Revenue Entry</h2>
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                    <select
+                        value={form.mine}
+                        onChange={(e) => setForm((prev) => ({ ...prev, mine: e.target.value }))}
+                        className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                    >
+                        <option value="">Select Mine</option>
+                        {mines.map((mine) => (
+                            <option key={mine.id} value={mine.id}>
+                                {mine.name}
+                            </option>
+                        ))}
+                    </select>
                     <input
                         type="date"
-                        className="border rounded-lg px-3 py-2 text-sm"
-                    />
-                    <input
-                        type="text"
-                        placeholder="Mining Site"
-                        className="border rounded-lg px-3 py-2 text-sm"
+                        value={form.date}
+                        onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))}
+                        className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
                     />
                     <input
                         type="number"
-                        placeholder="Amount"
-                        className="border rounded-lg px-3 py-2 text-sm"
+                        min="0"
+                        step="0.01"
+                        placeholder="Quantity"
+                        value={form.quantity}
+                        onChange={(e) => setForm((prev) => ({ ...prev, quantity: e.target.value }))}
+                        className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
                     />
-                    <button className="bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
-                        Save Entry
+                    <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Unit price"
+                        value={form.unit_price}
+                        onChange={(e) => setForm((prev) => ({ ...prev, unit_price: e.target.value }))}
+                        className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                    />
+                    <button
+                        onClick={onCreateTransaction}
+                        disabled={creating}
+                        className="bg-blue-600 text-white rounded-lg px-3 py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                    >
+                        {creating ? "Saving..." : "Save Entry"}
                     </button>
                 </div>
             </section>
 
-            {/* ================= View Revenue Records ================= */}
-            <section>
-                <h2 className="text-lg font-semibold text-gray-700 mb-4">
-                    Revenue Records
-                </h2>
-
-                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+            <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+                    <h2 className="text-lg font-semibold text-slate-900">Revenue Records</h2>
+                    <span className="text-sm text-slate-500">{mappedTransactions.length} entries</span>
+                </div>
+                <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                        <thead className="bg-gray-100 text-gray-600">
+                        <thead className="bg-slate-100 text-slate-600">
                             <tr>
-                                <th className="text-left px-6 py-3">Date</th>
-                                <th className="text-left px-6 py-3">Mining Site</th>
-                                <th className="text-right px-6 py-3">Amount</th>
-                                <th className="text-left px-6 py-3">Status</th>
-                                <th className="text-right px-6 py-3">Actions</th>
+                                <th className="text-left px-5 py-3">Date</th>
+                                <th className="text-left px-5 py-3">Mine</th>
+                                <th className="text-right px-5 py-3">Amount</th>
+                                <th className="text-left px-5 py-3">Status</th>
+                                <th className="text-right px-5 py-3">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y">
-                            <tr>
-                                <td className="px-6 py-4">2026-01-12</td>
-                                <td className="px-6 py-4">Nyamabuye Mine</td>
-                                <td className="px-6 py-4 text-right">$12,450</td>
-                                <td className="px-6 py-4 text-green-600">Validated</td>
-                                <td className="px-6 py-4 text-right space-x-3">
-                                    <button className="text-blue-600 hover:underline">
-                                        Edit
-                                    </button>
-                                    <button className="text-gray-600 hover:underline">
-                                        View
-                                    </button>
-                                </td>
-                            </tr>
-
-                            <tr>
-                                <td className="px-6 py-4">2026-01-13</td>
-                                <td className="px-6 py-4">Kibungo Mine</td>
-                                <td className="px-6 py-4 text-right">$9,800</td>
-                                <td className="px-6 py-4 text-orange-600">Pending</td>
-                                <td className="px-6 py-4 text-right space-x-3">
-                                    <button className="text-blue-600 hover:underline">
-                                        Edit
-                                    </button>
-                                    <button className="text-green-600 hover:underline">
-                                        Validate
-                                    </button>
-                                </td>
-                            </tr>
+                        <tbody className="divide-y divide-slate-100">
+                            {isLoading ? (
+                                <tr>
+                                    <td className="px-5 py-8 text-center text-slate-500" colSpan={5}>
+                                        Loading transactions...
+                                    </td>
+                                </tr>
+                            ) : mappedTransactions.length === 0 ? (
+                                <tr>
+                                    <td className="px-5 py-8 text-center text-slate-500" colSpan={5}>
+                                        No transactions available.
+                                    </td>
+                                </tr>
+                            ) : (
+                                mappedTransactions.map((tx) => (
+                                    <tr key={tx.id}>
+                                        <td className="px-5 py-3">{tx.date}</td>
+                                        <td className="px-5 py-3">{tx.mineName}</td>
+                                        <td className="px-5 py-3 text-right">{formatCurrency(tx.total_amount)}</td>
+                                        <td className="px-5 py-3">
+                                            <span
+                                                className={`px-2.5 py-1 rounded-full border text-xs font-medium ${statusStyles[tx.status]}`}
+                                            >
+                                                {tx.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-5 py-3 text-right space-x-2">
+                                            <button
+                                                disabled={updatingStatus || tx.status === "Approved"}
+                                                className="text-emerald-700 hover:underline disabled:text-slate-300"
+                                                onClick={() => onStatusChange(tx.id, "Approved")}
+                                            >
+                                                Approve
+                                            </button>
+                                            <button
+                                                disabled={updatingStatus || tx.status === "Rejected"}
+                                                className="text-rose-700 hover:underline disabled:text-slate-300"
+                                                onClick={() => onStatusChange(tx.id, "Rejected")}
+                                            >
+                                                Reject
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
-                </div>
-            </section>
-
-            {/* ================= Edit / Validate Revenue Data ================= */}
-            <section>
-                <h2 className="text-lg font-semibold text-gray-700 mb-4">
-                    Edit & Validate Revenue Data
-                </h2>
-
-                <div className="bg-white rounded-xl shadow-sm p-6">
-                    <p className="text-sm text-gray-600">
-                        Review pending revenue entries and validate them after
-                        verification. All validation actions are logged for auditing.
-                    </p>
-                </div>
-            </section>
-
-            {/* ================= Revenue Allocation Tracking ================= */}
-            <section>
-                <h2 className="text-lg font-semibold text-gray-700 mb-4">
-                    Revenue Allocation Tracking
-                </h2>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="bg-white rounded-xl shadow-sm p-5">
-                        <p className="text-sm text-gray-500">Community Development</p>
-                        <h3 className="text-xl font-semibold text-gray-800">45%</h3>
-                    </div>
-
-                    <div className="bg-white rounded-xl shadow-sm p-5">
-                        <p className="text-sm text-gray-500">Operational Costs</p>
-                        <h3 className="text-xl font-semibold text-gray-800">35%</h3>
-                    </div>
-
-                    <div className="bg-white rounded-xl shadow-sm p-5">
-                        <p className="text-sm text-gray-500">Reserves & Sustainability</p>
-                        <h3 className="text-xl font-semibold text-gray-800">20%</h3>
-                    </div>
                 </div>
             </section>
         </div>

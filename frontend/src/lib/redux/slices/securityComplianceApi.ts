@@ -91,15 +91,18 @@ export const securityComplianceApi = apiSlice.injectEndpoints({
     endpoints: (builder) => ({
         getSecuritySummary: builder.query<SecuritySummary, void>({
             query: () => "security/summary/",
+            providesTags: ["Analytics"],
         }),
         getSecurityEvents: builder.query<SecurityEvent[], EventsQuery | void>({
             query: (params) => ({
                 url: "security/events/",
                 params,
             }),
+            providesTags: ["Analytics"],
         }),
         getSecurityIncidents: builder.query<SecurityIncident[], void>({
             query: () => "security/incidents/",
+            providesTags: ["Analytics"],
         }),
         createSecurityIncident: builder.mutation<SecurityIncident, NewIncidentPayload>({
             query: (body) => ({
@@ -107,6 +110,7 @@ export const securityComplianceApi = apiSlice.injectEndpoints({
                 method: "POST",
                 body,
             }),
+            invalidatesTags: ["Analytics"],
         }),
         updateIncidentStatus: builder.mutation<SecurityIncident, UpdateIncidentStatusPayload>({
             query: ({ id, ...body }) => ({
@@ -114,9 +118,11 @@ export const securityComplianceApi = apiSlice.injectEndpoints({
                 method: "PATCH",
                 body,
             }),
+            invalidatesTags: ["Analytics"],
         }),
         getCompliancePolicies: builder.query<CompliancePolicy[], void>({
             query: () => "security/policies/",
+            providesTags: ["Analytics"],
         }),
         updatePolicyControl: builder.mutation<CompliancePolicy, UpdatePolicyControlPayload>({
             query: ({ id, ...body }) => ({
@@ -124,9 +130,11 @@ export const securityComplianceApi = apiSlice.injectEndpoints({
                 method: "PATCH",
                 body,
             }),
+            invalidatesTags: ["Analytics"],
         }),
         getAccessReviews: builder.query<AccessReviewPayload, void>({
             query: () => "security/access-reviews/",
+            providesTags: ["Analytics"],
         }),
     }),
 });
@@ -141,4 +149,3 @@ export const {
     useUpdatePolicyControlMutation,
     useGetAccessReviewsQuery,
 } = securityComplianceApi;
-

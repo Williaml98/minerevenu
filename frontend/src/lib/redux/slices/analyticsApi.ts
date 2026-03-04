@@ -29,18 +29,22 @@ export const analyticsApi = apiSlice.injectEndpoints({
     endpoints: (builder) => ({
         getAnalyticsSummary: builder.query<{ summary: AnalyticsSummary }, void>({
             query: () => "/analytics/summary/",
+            providesTags: ["Analytics"],
         }),
         getAnalyticsAnomalies: builder.query<{ anomalies: AnomalyInsight[] }, void>({
             query: () => "/analytics/anomalies/",
+            providesTags: ["Analytics"],
         }),
         getAnalyticsRecommendations: builder.query<{ recommendations: RecommendationItem[] }, void>({
             query: () => "/analytics/recommendations/",
+            providesTags: ["Analytics"],
         }),
         regenerateForecasts: builder.mutation<unknown, void>({
             query: () => ({
                 url: "/analytics/generate-forecast/",
                 method: "GET",
             }),
+            invalidatesTags: ["Analytics", "Forecasts"],
         }),
         retrainModels: builder.mutation<
             { message: string; forecast_metrics: unknown; anomaly_status: unknown },
@@ -50,6 +54,7 @@ export const analyticsApi = apiSlice.injectEndpoints({
                 url: "/analytics/train-models/",
                 method: "POST",
             }),
+            invalidatesTags: ["Analytics", "Forecasts"],
         }),
     }),
 });

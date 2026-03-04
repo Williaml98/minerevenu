@@ -6,4 +6,10 @@ class SalesTransactionSerializer(serializers.ModelSerializer):
     class Meta:
         model = SalesTransaction
         fields = "__all__"
-        read_only_fields = ("total_amount", "is_flagged")
+        read_only_fields = (
+            "total_amount",
+            "is_flagged",
+            "created_by",
+            "validated_by",
+            "validated_at",
+        )

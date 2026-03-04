@@ -1,24 +1,36 @@
 import { apiSlice } from "./ApiSlice";
 
+export interface CommunicationMessage {
+    id: number;
+    sender: number;
+    receiver: number;
+    content: string;
+    message_type: string;
+    priority: string;
+    is_read: boolean;
+    timestamp: string;
+}
+
+export interface SendMessagePayload {
+    receiver: number;
+    content: string;
+    message_type?: string;
+    priority?: string;
+}
+
 export const communicationSlice = apiSlice.injectEndpoints({
     endpoints: (builder) => ({
-        getAllMessages: builder.query({
+        getAllMessages: builder.query<CommunicationMessage[], unknown>({
             query: () => ({
-                url: 'communications/',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('access')}`,
-                },
+                url: "communications/",
+                method: "GET",
             }),
         }),
-        sendMessage: builder.mutation({
+        sendMessage: builder.mutation<CommunicationMessage, SendMessagePayload>({
             query: (message) => ({
-                url: 'communications/',
-                method: 'POST',
+                url: "communications/",
+                method: "POST",
                 body: message,
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('access')}`,
-                    'Content-Type': 'application/json',
-                },
             }),
         }),
     }),

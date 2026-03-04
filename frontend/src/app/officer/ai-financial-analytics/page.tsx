@@ -1,121 +1,112 @@
-'use client';
-import React from 'react';
+"use client";
 
-export default function AIFinancialAnalyticsPage() {
+import React from "react";
+import { AlertTriangle, Brain, ShieldCheck, TrendingUp } from "lucide-react";
+import {
+    useGetAnalyticsAnomaliesQuery,
+    useGetAnalyticsRecommendationsQuery,
+    useGetAnalyticsSummaryQuery,
+} from "@/lib/redux/slices/analyticsApi";
+
+function percent(value: number) {
+    return `${value.toFixed(1)}%`;
+}
+
+export default function OfficerAIFinancialAnalyticsPage() {
+    const { data: summaryData, isLoading: summaryLoading } = useGetAnalyticsSummaryQuery();
+    const { data: anomaliesData, isLoading: anomaliesLoading } = useGetAnalyticsAnomaliesQuery();
+    const { data: recommendationsData, isLoading: recLoading } = useGetAnalyticsRecommendationsQuery();
+
+    const summary = summaryData?.summary;
+    const anomalies = anomaliesData?.anomalies || [];
+    const recommendations = recommendationsData?.recommendations || [];
+
     return (
-        <div className="p-6 space-y-8 bg-gray-50 min-h-screen">
-            {/* Page Header */}
+        <div className="min-h-screen bg-slate-50 p-6 space-y-6">
             <div>
-                <h1 className="text-2xl font-bold text-gray-800">
-                    AI Financial Analytics
-                </h1>
-                <p className="text-sm text-gray-500">
-                    Advanced analytics for revenue trends, forecasts, and financial risks
+                <h1 className="text-2xl font-bold text-slate-900">AI Financial Analytics</h1>
+                <p className="text-sm text-slate-500 mt-1">
+                    Forecast trends, detect anomalies, and guide officer-level decisions.
                 </p>
             </div>
 
-            {/* ================= Revenue Trend Analysis ================= */}
-            <section>
-                <h2 className="text-lg font-semibold text-gray-700 mb-4">
-                    Revenue Trend Analysis
-                </h2>
-
-                <div className="bg-white rounded-xl shadow-sm p-6">
-                    <div className="h-56 flex items-center justify-center border border-dashed rounded-lg text-sm text-gray-400">
-                        Line Chart – Historical Revenue Trends
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div className="bg-white border border-slate-200 rounded-xl p-5">
+                    <div className="flex justify-between">
+                        <span className="text-sm text-slate-500">30-Day Revenue</span>
+                        <TrendingUp className="text-blue-600" size={18} />
                     </div>
-                    <p className="mt-3 text-xs text-gray-500">
-                        AI analyzes historical revenue to identify growth patterns and seasonality
-                    </p>
+                    <h2 className="text-2xl font-semibold text-slate-900 mt-2">
+                        {summaryLoading ? "..." : new Intl.NumberFormat("en-US").format(summary?.last_30_revenue || 0)}
+                    </h2>
                 </div>
-            </section>
-
-            {/* ================= Forecasted Income Reports ================= */}
-            <section>
-                <h2 className="text-lg font-semibold text-gray-700 mb-4">
-                    Forecasted Income Reports
-                </h2>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="bg-white rounded-xl shadow-sm p-5">
-                        <p className="text-sm text-gray-500">Next Month Forecast</p>
-                        <h3 className="text-xl font-semibold text-gray-800">$225,000</h3>
-                        <span className="text-xs text-green-600">+5.2% expected</span>
+                <div className="bg-white border border-slate-200 rounded-xl p-5">
+                    <div className="flex justify-between">
+                        <span className="text-sm text-slate-500">Growth Rate</span>
+                        <Brain className="text-violet-600" size={18} />
                     </div>
-
-                    <div className="bg-white rounded-xl shadow-sm p-5">
-                        <p className="text-sm text-gray-500">Next Quarter Forecast</p>
-                        <h3 className="text-xl font-semibold text-gray-800">$690,000</h3>
-                        <span className="text-xs text-gray-400">Stable trend</span>
-                    </div>
-
-                    <div className="bg-white rounded-xl shadow-sm p-5">
-                        <p className="text-sm text-gray-500">Forecast Confidence</p>
-                        <h3 className="text-xl font-semibold text-green-700">94%</h3>
-                        <span className="text-xs text-gray-400">
-                            Based on historical accuracy
-                        </span>
-                    </div>
+                    <h2 className="text-2xl font-semibold text-slate-900 mt-2">
+                        {summaryLoading ? "..." : percent((summary?.growth_rate || 0) * 100)}
+                    </h2>
                 </div>
-            </section>
-
-            {/* ================= Anomaly Detection ================= */}
-            <section>
-                <h2 className="text-lg font-semibold text-gray-700 mb-4">
-                    Anomaly Detection (Irregular Transactions)
-                </h2>
-
-                <div className="bg-white rounded-xl shadow-sm p-6">
-                    <div className="flex items-center justify-between mb-4">
-                        <p className="text-sm text-gray-600">
-                            AI flags transactions that deviate from normal financial patterns
-                        </p>
-                        <span className="text-sm font-semibold text-red-600">
-                            2 Alerts Detected
-                        </span>
+                <div className="bg-white border border-slate-200 rounded-xl p-5">
+                    <div className="flex justify-between">
+                        <span className="text-sm text-slate-500">Stability Score</span>
+                        <ShieldCheck className="text-emerald-600" size={18} />
                     </div>
+                    <h2 className="text-2xl font-semibold text-slate-900 mt-2">
+                        {summaryLoading ? "..." : percent(summary?.stability_score || 0)}
+                    </h2>
+                </div>
+                <div className="bg-white border border-slate-200 rounded-xl p-5">
+                    <div className="flex justify-between">
+                        <span className="text-sm text-slate-500">Anomaly Count</span>
+                        <AlertTriangle className="text-rose-600" size={18} />
+                    </div>
+                    <h2 className="text-2xl font-semibold text-rose-600 mt-2">
+                        {summaryLoading ? "..." : summary?.anomaly_count || 0}
+                    </h2>
+                </div>
+            </div>
 
+            <section className="bg-white border border-slate-200 rounded-xl p-5">
+                <h2 className="text-lg font-semibold text-slate-900 mb-4">Detected Anomalies</h2>
+                {anomaliesLoading ? (
+                    <p className="text-sm text-slate-500">Loading anomalies...</p>
+                ) : anomalies.length === 0 ? (
+                    <p className="text-sm text-slate-500">No anomalies detected in the recent window.</p>
+                ) : (
                     <div className="space-y-3">
-                        <div className="flex items-center justify-between text-sm border rounded-lg px-4 py-3">
-                            <span>Transaction #TX-90821</span>
-                            <span className="text-red-600">Unusual Amount</span>
-                        </div>
-
-                        <div className="flex items-center justify-between text-sm border rounded-lg px-4 py-3">
-                            <span>Transaction #TX-90845</span>
-                            <span className="text-orange-600">Timing Irregularity</span>
-                        </div>
+                        {anomalies.slice(0, 8).map((a) => (
+                            <div key={a.transaction_id} className="border border-slate-200 rounded-lg px-4 py-3">
+                                <p className="text-sm font-medium text-slate-900">
+                                    Tx #{a.transaction_id} - {a.mine_name}
+                                </p>
+                                <p className="text-xs text-slate-500 mt-1">
+                                    {new Date(a.date).toLocaleDateString()} | Amount {a.amount.toLocaleString()} | {a.reason}
+                                </p>
+                            </div>
+                        ))}
                     </div>
-                </div>
+                )}
             </section>
 
-            {/* ================= Budget Planning & Projections ================= */}
-            <section>
-                <h2 className="text-lg font-semibold text-gray-700 mb-4">
-                    Budget Planning & Projections
-                </h2>
-
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div className="bg-white rounded-xl shadow-sm p-5">
-                        <p className="text-sm text-gray-500">Proposed Budget</p>
-                        <h3 className="text-xl font-semibold text-gray-800">$1.5M</h3>
+            <section className="bg-white border border-slate-200 rounded-xl p-5">
+                <h2 className="text-lg font-semibold text-slate-900 mb-4">AI Recommendations</h2>
+                {recLoading ? (
+                    <p className="text-sm text-slate-500">Loading recommendations...</p>
+                ) : recommendations.length === 0 ? (
+                    <p className="text-sm text-slate-500">No recommendations available.</p>
+                ) : (
+                    <div className="space-y-3">
+                        {recommendations.map((rec, idx) => (
+                            <div key={`${rec.title}-${idx}`} className="border border-slate-200 rounded-lg px-4 py-3">
+                                <p className="text-sm font-semibold text-slate-900">{rec.title}</p>
+                                <p className="text-xs text-slate-500 mt-1">{rec.detail}</p>
+                            </div>
+                        ))}
                     </div>
-
-                    <div className="bg-white rounded-xl shadow-sm p-5">
-                        <p className="text-sm text-gray-500">Projected Revenue</p>
-                        <h3 className="text-xl font-semibold text-green-600">$1.62M</h3>
-                    </div>
-
-                    <div className="bg-white rounded-xl shadow-sm p-5">
-                        <p className="text-sm text-gray-500">Budget Variance</p>
-                        <h3 className="text-xl font-semibold text-green-600">+8%</h3>
-                    </div>
-
-                    <div className="bg-white rounded-xl shadow-sm p-5">
-                        <p className="text-sm text-gray-500">Risk Level</p>
-                        <h3 className="text-xl font-semibold text-gray-800">Low</h3>
-                    </div>
-                </div>
+                )}
             </section>
         </div>
     );
