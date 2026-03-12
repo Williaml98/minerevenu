@@ -133,49 +133,69 @@ export default function RevenueManagement() {
 
     // Combine and transform API data into RevenueEntry format
     useEffect(() => {
-        if (productionRecords.length > 0 || salesTransactions.length > 0) {
-            const combined: RevenueEntry[] = [];
+        // Avoid updating state while queries are still loading to prevent render loops
+        if (loadingProduction || loadingSales || loadingMines) return;
 
-            // Transform production records
-            productionRecords.forEach((record: ProductionRecord) => {
-                const mine = mineCompanies.find((m: MineCompany) => m.id === record.mine);
-                combined.push({
-                    id: `prod-${record.id}`,
-                    siteName: mine?.name || `Mine #${record.mine}`,
-                    siteId: record.mine,
-                    revenueSource: 'Production',
-                    amount: record.total_revenue || (record.quantity_produced * record.unit_price),
-                    dateSubmitted: record.date,
-                    status: 'Pending Review', // Default status
-                    submittedBy: 'System',
-                    type: 'production',
-                    recordId: record.id
-                });
+        const hasData = (productionRecords?.length ?? 0) + (salesTransactions?.length ?? 0) > 0;
+        if (!hasData) {
+            if (entries.length) setEntries([]); // clear once
+            return;
+        }
+
+        const combined: RevenueEntry[] = [];
+
+        productionRecords.forEach((record: ProductionRecord) => {
+            const mine = mineCompanies.find((m: MineCompany) => m.id === record.mine);
+            combined.push({
+                id: `prod-${record.id}`,
+                siteName: mine?.name || `Mine #${record.mine}`,
+                siteId: record.mine,
+                revenueSource: 'Production',
+                amount: record.total_revenue || (record.quantity_produced * record.unit_price),
+                dateSubmitted: record.date,
+                status: 'Pending Review',
+                submittedBy: 'System',
+                type: 'production',
+                recordId: record.id
+            });
+        });
+
+        salesTransactions.forEach((sale: SalesTransaction) => {
+            const mine = mineCompanies.find((m: MineCompany) => m.id === sale.mine);
+            combined.push({
+                id: `sales-${sale.id}`,
+                siteName: mine?.name || `Mine #${sale.mine}`,
+                siteId: sale.mine,
+                revenueSource: 'Sales',
+                amount: sale.total_amount || (sale.quantity * sale.unit_price),
+                dateSubmitted: sale.date,
+                status: sale.is_flagged ? 'Rejected' : 'Pending Review',
+                submittedBy: `User #${sale.created_by}`,
+                type: 'sales',
+                recordId: sale.id,
+                description: `Payment: ${sale.payment_method}`
+            });
+        });
+
+        combined.sort((a, b) => new Date(b.dateSubmitted).getTime() - new Date(a.dateSubmitted).getTime());
+
+        // Prevent unnecessary state updates that can trigger re-render loops
+        const sameLength = combined.length === entries.length;
+        const unchanged =
+            sameLength &&
+            combined.every((c, idx) => {
+                const prev = entries[idx];
+                return prev &&
+                    prev.id === c.id &&
+                    prev.status === c.status &&
+                    prev.amount === c.amount &&
+                    prev.dateSubmitted === c.dateSubmitted;
             });
 
-            // Transform sales transactions
-            salesTransactions.forEach((sale: SalesTransaction) => {
-                const mine = mineCompanies.find((m: MineCompany) => m.id === sale.mine);
-                combined.push({
-                    id: `sales-${sale.id}`,
-                    siteName: mine?.name || `Mine #${sale.mine}`,
-                    siteId: sale.mine,
-                    revenueSource: 'Sales',
-                    amount: sale.total_amount || (sale.quantity * sale.unit_price),
-                    dateSubmitted: sale.date,
-                    status: sale.is_flagged ? 'Rejected' : 'Pending Review',
-                    submittedBy: `User #${sale.created_by}`,
-                    type: 'sales',
-                    recordId: sale.id,
-                    description: `Payment: ${sale.payment_method}`
-                });
-            });
-
-            // Sort by date (most recent first)
-            combined.sort((a, b) => new Date(b.dateSubmitted).getTime() - new Date(a.dateSubmitted).getTime());
+        if (!unchanged) {
             setEntries(combined);
         }
-    }, [productionRecords, salesTransactions, mineCompanies]);
+    }, [productionRecords, salesTransactions, mineCompanies, loadingProduction, loadingSales, loadingMines, entries]);
 
     // Get unique revenue sources for filter
     const revenueSources = ['All Sources', ...new Set(entries.map(e => e.revenueSource))];

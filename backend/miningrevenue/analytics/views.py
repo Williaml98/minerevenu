@@ -16,8 +16,9 @@ from authapi.permissions import IsAdmin
 
 class GenerateForecastAPIView(APIView):
     permission_classes = [IsAuthenticated, IsAdmin]
+    throttle_scope = "forecast_generate"
 
-    def get(self, request):
+    def post(self, request):
         predictions = forecast_next_steps(6)
 
         today = date.today()
@@ -305,6 +306,7 @@ class TrainModelsAPIView(APIView):
     """
 
     permission_classes = [IsAuthenticated, IsAdmin]
+    throttle_scope = "train_models"
 
     def post(self, request):
         forecast_metrics = train_forecasting_model()

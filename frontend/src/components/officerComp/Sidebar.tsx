@@ -27,6 +27,11 @@ const items = [
         icon: Users,
     },
     {
+        title: "Mines & Companies",
+        url: "/officer/mines",
+        icon: Shield,
+    },
+    {
         title: "AI Financial Analytics",
         url: "/officer/ai-financial-analytics",
         icon: BarChart3,

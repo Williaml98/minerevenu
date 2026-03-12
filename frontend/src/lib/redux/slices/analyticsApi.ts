@@ -39,10 +39,14 @@ export const analyticsApi = apiSlice.injectEndpoints({
             query: () => "/analytics/recommendations/",
             providesTags: ["Analytics"],
         }),
+        getForecasts: builder.query<{ id: number; forecast_date: string; predicted_revenue: number; model_version: string }[], void>({
+            query: () => "/analytics/forecasts/",
+            providesTags: ["Forecasts"],
+        }),
         regenerateForecasts: builder.mutation<unknown, void>({
             query: () => ({
                 url: "/analytics/generate-forecast/",
-                method: "GET",
+                method: "POST",
             }),
             invalidatesTags: ["Analytics", "Forecasts"],
         }),
@@ -63,6 +67,7 @@ export const {
     useGetAnalyticsSummaryQuery,
     useGetAnalyticsAnomaliesQuery,
     useGetAnalyticsRecommendationsQuery,
+    useGetForecastsQuery,
     useRegenerateForecastsMutation,
     useRetrainModelsMutation,
 } = analyticsApi;

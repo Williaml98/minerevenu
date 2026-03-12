@@ -146,7 +146,7 @@ const miningApi = apiSlice.injectEndpoints({
         generateForecast: builder.mutation<RevenueForecast[], unknown>({
             query: () => ({
                 url: "analytics/generate-forecast/",
-                method: "GET",
+                method: "POST",
             }),
             invalidatesTags: ["Forecasts"],
         }),

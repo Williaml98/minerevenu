@@ -160,7 +160,7 @@ const EMPTY_ARRAY: unknown[] = [];
 const formatCurrency = (value: number): string => {
     return new Intl.NumberFormat('en-US', {
         style: 'currency',
-        currency: 'RWF',
+        currency: 'USD',
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
         notation: 'compact',
@@ -234,8 +234,14 @@ export default function AdminDashboard() {
         // Count flagged transactions
         const flaggedTransactions = salesTransactions.filter((s: SalesTransaction) => s.is_flagged).length;
 
-        // Calculate forecast accuracy (simulated for demo)
-        const forecastAccuracy = 94.5;
+        // Calculate simple forecast accuracy proxy: compare mean forecast to recent average sales
+        let forecastAccuracy = 0;
+        if (forecasts.length && salesTransactions.length) {
+            const meanForecast = forecasts.reduce((sum, f) => sum + f.predicted_revenue, 0) / forecasts.length;
+            const meanActual = salesTransactions.reduce((sum, s) => sum + s.total_amount, 0) / salesTransactions.length;
+            const errorRatio = Math.abs(meanForecast - meanActual) / Math.max(meanActual, 1);
+            forecastAccuracy = Math.max(0, Math.min(1, 1 - errorRatio)) * 100;
+        }
 
         // Process site performance
         const sitePerformance: SitePerformance[] = companies.map((company: MiningCompany) => {
@@ -618,8 +624,12 @@ export default function AdminDashboard() {
                             <Gauge size={18} className="text-amber-500" />
                         </div>
                         <div>
-                            <p className="text-xs text-slate-500">Efficiency</p>
-                            <p className="text-sm font-bold text-slate-900">87.5%</p>
+                            <p className="text-xs text-slate-500">Sales vs Production</p>
+                            <p className="text-sm font-bold text-slate-900">
+                                {dashboardData.totalProduction > 0
+                                    ? `${Math.min(100, ((dashboardData.totalSales || 0) / dashboardData.totalProduction) * 100).toFixed(1)}%`
+                                    : '—'}
+                            </p>
                         </div>
                     </div>
                     <div className="bg-white rounded-lg p-3 border border-slate-200 flex items-center gap-3">

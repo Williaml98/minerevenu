@@ -8,6 +8,7 @@ import {
     useGetAnalyticsSummaryQuery,
     useGetAnalyticsAnomaliesQuery,
     useGetAnalyticsRecommendationsQuery,
+    useGetForecastsQuery,
     useRegenerateForecastsMutation,
     useRetrainModelsMutation,
 } from "@/lib/redux/slices/analyticsApi";
@@ -32,19 +33,22 @@ export default function AIAnalytics() {
         isLoading: recsLoading,
         isError: recsError,
     } = useGetAnalyticsRecommendationsQuery();
+    const {
+        data: forecastsData,
+        isLoading: forecastsLoading,
+        isError: forecastsError,
+    } = useGetForecastsQuery();
     const [regenerateForecasts, { isLoading: regenLoading }] = useRegenerateForecastsMutation();
     const [retrainModels, { isLoading: retrainLoading }] = useRetrainModelsMutation();
-
-    // Sample data for sparkline (fallback)
-    const sparklineData = [45, 52, 48, 61, 58, 65, 72, 68, 75, 82];
+    const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
     const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('en-RW', {
+        return new Intl.NumberFormat('en-US', {
             style: 'currency',
-            currency: 'RWF',
-            minimumFractionDigits: 1,
-            maximumFractionDigits: 1
-        }).format(amount).replace('RWF', '').trim();
+            currency: 'USD',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(amount);
     };
 
     const anomalies = useMemo(() => {
@@ -105,12 +109,86 @@ export default function AIAnalytics() {
         return acc.toFixed(1);
     }, [summaryData]);
 
-    const stabilityScore = summaryData?.summary.stability_score ?? 82;
+    const stabilityScore = summaryData?.summary.stability_score ?? 0;
     const anomalyCount = summaryData?.summary.anomaly_count ?? 0;
-    const forecastedRevenue = summaryData?.summary.last_30_revenue ?? 54200000;
 
-    const anyLoading = summaryLoading || anomaliesLoading || recsLoading;
-    const anyError = summaryError || anomaliesError || recsError;
+    const forecastSeries = useMemo(() => {
+        if (!forecastsData || !forecastsData.length) return [];
+        const sorted = [...forecastsData].sort(
+            (a, b) => new Date(a.forecast_date).getTime() - new Date(b.forecast_date).getTime()
+        );
+        return sorted.map((f) => ({
+            date: new Date(f.forecast_date),
+            value: f.predicted_revenue,
+            label: new Date(f.forecast_date).toLocaleDateString(),
+        }));
+    }, [forecastsData]);
+
+    const forecastStats = useMemo(() => {
+        if (!forecastSeries.length) return null;
+        const values = forecastSeries.map((f) => f.value);
+        return {
+            expected: forecastSeries[0].value,
+            expectedLabel: forecastSeries[0].label,
+            high: Math.max(...values),
+            low: Math.min(...values),
+        };
+    }, [forecastSeries]);
+
+    const forecastedRevenue = forecastSeries.at(0)?.value ?? summaryData?.summary.last_30_revenue ?? 0;
+
+    const heatmap = useMemo(() => {
+        if (!anomaliesData?.anomalies?.length) return [];
+
+        const days = Array.from({ length: 14 }).map((_, idx) => {
+            const d = new Date();
+            d.setDate(d.getDate() - (13 - idx));
+            return d;
+        });
+
+        const bySite: Record<string, Record<string, number>> = {};
+        anomaliesData.anomalies.forEach((a) => {
+            const site = a.mine_name || 'Unknown';
+            const dayKey = new Date(a.date).toISOString().slice(0, 10);
+            bySite[site] = bySite[site] || {};
+            bySite[site][dayKey] = (bySite[site][dayKey] || 0) + 1;
+        });
+
+        const maxCount = Math.max(
+            1,
+            ...Object.values(bySite).flatMap((m) => Object.values(m))
+        );
+
+        return Object.entries(bySite).map(([site, dayMap]) => ({
+            site,
+            cells: days.map((d) => {
+                const key = d.toISOString().slice(0, 10);
+                const count = dayMap[key] || 0;
+                const intensity = count / maxCount;
+                return { date: key, count, intensity };
+            }),
+        }));
+    }, [anomaliesData]);
+
+    const sparklineData = useMemo(() => {
+        if (forecastSeries.length) return forecastSeries.map((f) => f.value);
+        if (summaryData?.summary?.last_30_revenue) return [summaryData.summary.last_30_revenue];
+        return [];
+    }, [forecastSeries, summaryData]);
+
+    const anyLoading = summaryLoading || anomaliesLoading || recsLoading || forecastsLoading;
+    const anyError = summaryError || anomaliesError || recsError || forecastsError;
+
+    const handleAction = async (fn: () => Promise<unknown>, successText: string) => {
+        setActionMessage(null);
+        try {
+            await fn();
+            setActionMessage({ type: 'success', text: successText });
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        } catch (err: unknown) {
+            setActionMessage({ type: 'error', text: 'Action failed. Please check your permissions or try again.' });
+        }
+    };
 
     return (
         <div className="min-h-screen bg-gray-50 p-8">
@@ -134,7 +212,7 @@ export default function AIAnalytics() {
                     </div>
                     <div className="flex flex-wrap gap-3">
                         <button
-                            onClick={() => regenerateForecasts()}
+                            onClick={() => handleAction(() => regenerateForecasts().unwrap(), "Forecasts regenerated")}
                             disabled={regenLoading}
                             className="px-4 py-2 rounded-lg border border-blue-600 text-blue-600 hover:bg-blue-50 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
                         >
@@ -142,7 +220,7 @@ export default function AIAnalytics() {
                             {regenLoading ? "Regenerating Forecasts..." : "Regenerate Forecasts"}
                         </button>
                         <button
-                            onClick={() => retrainModels()}
+                            onClick={() => handleAction(() => retrainModels().unwrap(), "Models retrained")}
                             disabled={retrainLoading}
                             className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
                         >
@@ -151,6 +229,16 @@ export default function AIAnalytics() {
                         </button>
                     </div>
                 </div>
+                {actionMessage && (
+                    <div
+                        className={`mb-4 rounded-lg px-4 py-3 text-sm ${actionMessage.type === 'success'
+                            ? 'bg-green-50 text-green-700 border border-green-200'
+                            : 'bg-red-50 text-red-700 border border-red-200'
+                            }`}
+                    >
+                        {actionMessage.text}
+                    </div>
+                )}
 
                 {/* Section 1 - Key AI Metrics */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -161,22 +249,31 @@ export default function AIAnalytics() {
                         </div>
                         <div className="mb-3">
                             <p className="text-3xl font-bold text-gray-900">
-                                {formatCurrency(forecastedRevenue)} RWF
+                                {forecastedRevenue ? formatCurrency(forecastedRevenue) : '—'}
                             </p>
                             <p className="text-xs text-gray-500 mt-1">
-                                Based on latest ARIMA forecast
+                                Based on latest forecast model output
                             </p>
                         </div>
                         {/* Sparkline */}
                         <div className="h-12 mb-3">
-                            <svg width="100%" height="100%" viewBox="0 0 200 48">
-                                <polyline
-                                    fill="none"
-                                    stroke="#1A73E8"
-                                    strokeWidth="2"
-                                    points={sparklineData.map((val, i) => `${(i / (sparklineData.length - 1)) * 200},${48 - (val / 100) * 48}`).join(' ')}
-                                />
-                            </svg>
+                            {sparklineData.length > 1 ? (
+                                <svg width="100%" height="100%" viewBox="0 0 200 48">
+                                    <polyline
+                                        fill="none"
+                                        stroke="#1A73E8"
+                                        strokeWidth="2"
+                                        points={sparklineData.map((val, i) => {
+                                            const x = (i / (sparklineData.length - 1)) * 200;
+                                            const max = Math.max(...sparklineData, 1);
+                                            const y = 48 - (val / max) * 48;
+                                            return `${x},${y}`;
+                                        }).join(' ')}
+                                    />
+                                </svg>
+                            ) : (
+                                <p className="text-xs text-gray-400">Waiting for forecast data...</p>
+                            )}
                         </div>
                         <div className="flex items-center gap-2">
                             <span
@@ -204,9 +301,16 @@ export default function AIAnalytics() {
                         </div>
                         <div className="h-12 flex items-center justify-center mb-3">
                             <div className="flex gap-2">
-                                {[1, 2, 3, 4, 5, 6, 7, 8].map((_, i) => (
-                                    <div key={i} className={`w-2 h-${8 + i * 2} ${i < 3 ? 'bg-red-500' : 'bg-yellow-500'} rounded-full`}></div>
-                                ))}
+                                {[1, 2, 3, 4, 5, 6, 7, 8].map((_, i) => {
+                                    const isHigh = i < Math.min(anomalyCount, 3);
+                                    return (
+                                        <div
+                                            key={i}
+                                            className={`${isHigh ? 'bg-red-500' : 'bg-yellow-500'} w-2 rounded-full`}
+                                            style={{ height: `${8 + i * 2}px` }}
+                                        ></div>
+                                    );
+                                })}
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -382,18 +486,26 @@ export default function AIAnalytics() {
                     </div>
 
                     {/* Bottom labels */}
-                    <div className="mt-6 pt-6 border-t border-gray-200 flex justify-between">
+                    <div className="mt-6 pt-6 border-t border-gray-200 grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
-                            <p className="text-xs text-gray-500 mb-1">Expected Revenue (Next Period)</p>
-                            <p className="text-lg font-bold text-gray-900">{formatCurrency(58300000)}M RWF</p>
+                            <p className="text-xs text-gray-500 mb-1">
+                                Expected Revenue {forecastStats?.expectedLabel ? `(${forecastStats.expectedLabel})` : ''}
+                            </p>
+                            <p className="text-lg font-bold text-gray-900">
+                                {forecastStats ? formatCurrency(forecastStats.expected) : '—'}
+                            </p>
                         </div>
                         <div>
                             <p className="text-xs text-gray-500 mb-1">Forecasted High</p>
-                            <p className="text-lg font-bold text-green-600">{formatCurrency(65200000)}M RWF</p>
+                            <p className="text-lg font-bold text-green-600">
+                                {forecastStats ? formatCurrency(forecastStats.high) : '—'}
+                            </p>
                         </div>
                         <div>
                             <p className="text-xs text-gray-500 mb-1">Forecasted Low</p>
-                            <p className="text-lg font-bold text-red-600">{formatCurrency(51400000)}M RWF</p>
+                            <p className="text-lg font-bold text-red-600">
+                                {forecastStats ? formatCurrency(forecastStats.low) : '—'}
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -430,21 +542,30 @@ export default function AIAnalytics() {
                     </div>
 
                     <div className="bg-white rounded-2xl shadow-sm p-6">
-                        <h2 className="text-xl font-bold text-gray-900 mb-6">Anomaly Distribution Heatmap</h2>
+                        <h2 className="text-xl font-bold text-gray-900 mb-6">Anomaly Distribution Heatmap (last 14 days)</h2>
+                        {!heatmap.length && !anomaliesLoading && (
+                            <p className="text-sm text-gray-500">No anomalies detected in the last 14 days.</p>
+                        )}
                         <div className="space-y-3">
-                            {['Site A', 'Site B', 'Site C', 'Site D'].map((site) => (
-                                <div key={site} className="flex items-center gap-3">
-                                    <div className="w-20 text-sm font-medium text-gray-700">{site}</div>
-                                    <div className="flex-1 flex gap-1">
-                                        {Array.from({ length: 30 }).map((_, dayIndex) => {
-                                            const intensity = Math.random();
-                                            const color = intensity > 0.7 ? 'bg-red-500' : intensity > 0.4 ? 'bg-yellow-500' : intensity > 0.2 ? 'bg-blue-500' : 'bg-gray-200';
+                            {heatmap.map((row) => (
+                                <div key={row.site} className="flex items-center gap-3">
+                                    <div className="w-28 text-sm font-medium text-gray-700 truncate" title={row.site}>{row.site}</div>
+                                    <div className="flex-1 grid grid-cols-14 gap-1">
+                                        {row.cells.map((cell) => {
+                                            const color =
+                                                cell.intensity > 0.7
+                                                    ? 'bg-red-500'
+                                                    : cell.intensity > 0.4
+                                                        ? 'bg-yellow-500'
+                                                        : cell.intensity > 0.1
+                                                            ? 'bg-blue-500'
+                                                            : 'bg-gray-200';
                                             return (
                                                 <div
-                                                    key={dayIndex}
-                                                    className={`flex-1 h-8 ${color} rounded`}
-                                                    style={{ opacity: intensity > 0.2 ? intensity : 0.3 }}
-                                                    title={`Day ${dayIndex + 1}: ${(intensity * 100).toFixed(0)}% anomaly score`}
+                                                    key={`${row.site}-${cell.date}`}
+                                                    className={`h-8 rounded ${color}`}
+                                                    style={{ opacity: Math.max(0.25, cell.intensity || 0.25) }}
+                                                    title={`${cell.date}: ${cell.count} anomaly${cell.count === 1 ? '' : 'ies'}`}
                                                 ></div>
                                             );
                                         })}
@@ -453,7 +574,7 @@ export default function AIAnalytics() {
                             ))}
                         </div>
                         <div className="mt-6 pt-6 border-t border-gray-200">
-                            <p className="text-xs text-gray-500 mb-3">Fraud Probability Index (model output intensity)</p>
+                            <p className="text-xs text-gray-500 mb-3">Fraud probability index by site/day (normalized counts)</p>
                             <div className="flex items-center gap-2">
                                 <span className="text-xs text-gray-600">Low</span>
                                 <div className="flex-1 h-2 bg-gradient-to-r from-gray-200 via-yellow-500 to-red-500 rounded-full"></div>
