@@ -12,6 +12,7 @@ import {
     useRegenerateForecastsMutation,
     useRetrainModelsMutation,
 } from "@/lib/redux/slices/analyticsApi";
+import { useGetMineCompaniesQuery, useGetSalesTransactionsQuery } from "@/lib/redux/slices/MiningSlice";
 
 export default function AIAnalytics() {
     const [forecastSite, setForecastSite] = useState('All Sites');
@@ -38,6 +39,8 @@ export default function AIAnalytics() {
         isLoading: forecastsLoading,
         isError: forecastsError,
     } = useGetForecastsQuery();
+    const { data: minesData = [] } = useGetMineCompaniesQuery({});
+    const { data: salesData = [] } = useGetSalesTransactionsQuery({});
     const [regenerateForecasts, { isLoading: regenLoading }] = useRegenerateForecastsMutation();
     const [retrainModels, { isLoading: retrainLoading }] = useRetrainModelsMutation();
     const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -136,6 +139,98 @@ export default function AIAnalytics() {
     }, [forecastSeries]);
 
     const forecastedRevenue = forecastSeries.at(0)?.value ?? summaryData?.summary.last_30_revenue ?? 0;
+
+    const periodDays = useMemo(() => {
+        switch (forecastPeriod) {
+            case '3 months':
+                return 90;
+            case '6 months':
+                return 180;
+            case '1 year':
+                return 365;
+            default:
+                return 30;
+        }
+    }, [forecastPeriod]);
+
+    const selectedMineId = useMemo(() => {
+        if (forecastSite === 'All Sites') return null;
+        const found = minesData.find((m) => m.name === forecastSite);
+        return found?.id ?? null;
+    }, [forecastSite, minesData]);
+
+    const actualSeries = useMemo(() => {
+        const today = new Date();
+        const start = new Date();
+        start.setDate(today.getDate() - periodDays);
+
+        const filtered = salesData.filter((s) => {
+            const d = new Date(s.date);
+            if (selectedMineId && s.mine !== selectedMineId) return false;
+            return d >= start && d <= today;
+        });
+
+        const dailyMap = new Map<string, number>();
+        filtered.forEach((s) => {
+            const key = new Date(s.date).toISOString().slice(0, 10);
+            dailyMap.set(key, (dailyMap.get(key) || 0) + s.total_amount);
+        });
+
+        const days: Array<{ date: Date; value: number; label: string }> = [];
+        for (let i = periodDays; i >= 0; i -= 1) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const key = d.toISOString().slice(0, 10);
+            days.push({
+                date: d,
+                value: dailyMap.get(key) || 0,
+                label: d.toLocaleDateString(),
+            });
+        }
+        return days;
+    }, [salesData, selectedMineId, periodDays]);
+
+    const bucketKey = (date: Date, view: string) => {
+        if (view === 'Monthly') return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        if (view === 'Weekly') {
+            const d = new Date(date);
+            const day = d.getDay();
+            const diff = (day + 6) % 7;
+            d.setDate(d.getDate() - diff);
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+        return date.toISOString().slice(0, 10);
+    };
+
+    const trendSeriesBySite = useMemo(() => {
+        const siteMap = new Map<number, string>();
+        minesData.forEach((m) => siteMap.set(m.id, m.name));
+
+        const seriesMap = new Map<string, Map<string, number>>();
+        salesData.forEach((s) => {
+            if (selectedMineId && s.mine !== selectedMineId) return;
+            const siteName = siteMap.get(s.mine) || `Mine #${s.mine}`;
+            const key = bucketKey(new Date(s.date), trendView);
+            if (!seriesMap.has(siteName)) seriesMap.set(siteName, new Map());
+            const series = seriesMap.get(siteName)!;
+            series.set(key, (series.get(key) || 0) + s.total_amount);
+        });
+
+        const seriesList = Array.from(seriesMap.entries()).map(([site, map]) => {
+            const points = Array.from(map.entries())
+                .map(([label, value]) => ({ label, value }))
+                .sort((a, b) => new Date(a.label).getTime() - new Date(b.label).getTime());
+            return { site, points };
+        });
+
+        seriesList.sort((a, b) => {
+            const aTotal = a.points.reduce((sum, p) => sum + p.value, 0);
+            const bTotal = b.points.reduce((sum, p) => sum + p.value, 0);
+            return bTotal - aTotal;
+        });
+
+        return seriesList.slice(0, 4);
+    }, [salesData, minesData, selectedMineId, trendView]);
 
     const heatmap = useMemo(() => {
         if (!anomaliesData?.anomalies?.length) return [];
@@ -393,10 +488,9 @@ export default function AIAnalytics() {
                                 className="px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                             >
                                 <option>All Sites</option>
-                                <option>Site A</option>
-                                <option>Site B</option>
-                                <option>Site C</option>
-                                <option>Site D</option>
+                                {minesData.map((mine) => (
+                                    <option key={mine.id}>{mine.name}</option>
+                                ))}
                             </select>
                             <div className="flex bg-gray-100 rounded-xl p-1">
                                 {['30 days', '3 months', '6 months', '1 year'].map((period) => (
@@ -417,7 +511,6 @@ export default function AIAnalytics() {
 
                     <div className="h-80 relative">
                         <svg width="100%" height="100%" viewBox="0 0 1000 320">
-                            {/* Grid lines */}
                             {[0, 1, 2, 3, 4].map((i) => (
                                 <line
                                     key={i}
@@ -430,45 +523,50 @@ export default function AIAnalytics() {
                                 />
                             ))}
 
-                            {/* Confidence interval shading */}
-                            <polygon
-                                points="0,200 100,180 200,160 300,150 400,140 500,130 600,135 700,145 800,155 900,165 1000,175 1000,280 900,265 800,255 700,245 600,235 500,230 400,240 300,250 200,260 100,270 0,280"
-                                fill="#1A73E8"
-                                opacity="0.1"
-                            />
+                            {(() => {
+                                const forecastCount = Math.max(1, Math.round(periodDays / 30));
+                                const forecastPoints = forecastSeries.slice(0, forecastCount);
+                                const actualPoints = actualSeries.slice(-periodDays);
+                                const allValues = [
+                                    ...forecastPoints.map((p) => p.value),
+                                    ...actualPoints.map((p) => p.value),
+                                ];
+                                const maxValue = Math.max(...allValues, 1);
 
-                            {/* Actual revenue line */}
-                            <polyline
-                                fill="none"
-                                stroke="#1A73E8"
-                                strokeWidth="3"
-                                points="0,200 100,180 200,160 300,150 400,140 500,130 600,135"
-                            />
+                                const toPoints = (points: Array<{ value: number }>) =>
+                                    points.map((p, i) => {
+                                        const x = (i / Math.max(points.length - 1, 1)) * 1000;
+                                        const y = 300 - (p.value / maxValue) * 260;
+                                        return `${x},${y}`;
+                                    }).join(' ');
 
-                            {/* Forecast line (dashed) */}
-                            <polyline
-                                fill="none"
-                                stroke="#1A73E8"
-                                strokeWidth="3"
-                                strokeDasharray="10,5"
-                                points="600,135 700,145 800,155 900,165 1000,175"
-                            />
+                                const actualPolyline = toPoints(actualPoints);
+                                const forecastPolyline = toPoints(forecastPoints);
 
-                            {/* Data points */}
-                            {[0, 100, 200, 300, 400, 500, 600].map((x, i) => (
-                                <circle
-                                    key={i}
-                                    cx={x}
-                                    cy={200 - i * 10}
-                                    r="5"
-                                    fill="white"
-                                    stroke="#1A73E8"
-                                    strokeWidth="3"
-                                />
-                            ))}
+                                return (
+                                    <>
+                                        {actualPoints.length > 1 && (
+                                            <polyline
+                                                fill="none"
+                                                stroke="#1A73E8"
+                                                strokeWidth="3"
+                                                points={actualPolyline}
+                                            />
+                                        )}
+                                        {forecastPoints.length > 1 && (
+                                            <polyline
+                                                fill="none"
+                                                stroke="#1A73E8"
+                                                strokeWidth="3"
+                                                strokeDasharray="8,6"
+                                                points={forecastPolyline}
+                                            />
+                                        )}
+                                    </>
+                                );
+                            })()}
                         </svg>
 
-                        {/* Legend */}
                         <div className="absolute bottom-4 left-4 flex gap-6">
                             <div className="flex items-center gap-2">
                                 <div className="w-8 h-0.5 bg-blue-600"></div>
@@ -477,10 +575,6 @@ export default function AIAnalytics() {
                             <div className="flex items-center gap-2">
                                 <div className="w-8 h-0.5 bg-blue-600 border-dashed" style={{ borderTop: '2px dashed' }}></div>
                                 <span className="text-sm text-gray-600">Forecasted Revenue</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <div className="w-8 h-3 bg-blue-600 opacity-20 rounded"></div>
-                                <span className="text-sm text-gray-600">Confidence Interval</span>
                             </div>
                         </div>
                     </div>
@@ -605,57 +699,46 @@ export default function AIAnalytics() {
 
                     <div className="h-80 relative mb-6">
                         <svg width="100%" height="100%" viewBox="0 0 1000 320">
-                            {/* Grid */}
                             {[0, 1, 2, 3, 4].map((i) => (
                                 <line key={i} x1="0" y1={i * 80} x2="1000" y2={i * 80} stroke="#E5E7EB" strokeWidth="1" />
                             ))}
 
-                            {/* Site A - Blue */}
-                            <polyline
-                                fill="none"
-                                stroke="#1A73E8"
-                                strokeWidth="3"
-                                points="0,200 125,180 250,165 375,155 500,145 625,140 750,138 875,135 1000,130"
-                            />
+                            {(() => {
+                                const palette = ['#1A73E8', '#27AE60', '#8B5CF6', '#F97316'];
+                                const allValues = trendSeriesBySite.flatMap((s) => s.points.map((p) => p.value));
+                                const maxValue = Math.max(...allValues, 1);
 
-                            {/* Site B - Green */}
-                            <polyline
-                                fill="none"
-                                stroke="#27AE60"
-                                strokeWidth="3"
-                                points="0,220 125,210 250,200 375,190 500,180 625,175 750,170 875,165 1000,160"
-                            />
-
-                            {/* Site C - Purple */}
-                            <polyline
-                                fill="none"
-                                stroke="#8B5CF6"
-                                strokeWidth="3"
-                                points="0,180 125,175 250,170 375,168 500,190 625,210 750,220 875,225 1000,230"
-                            />
-
-                            {/* Site D - Orange */}
-                            <polyline
-                                fill="none"
-                                stroke="#F97316"
-                                strokeWidth="3"
-                                points="0,240 125,235 250,230 375,225 500,220 625,215 750,210 875,205 1000,200"
-                            />
+                                return trendSeriesBySite.map((series, index) => {
+                                    const points = series.points;
+                                    if (points.length < 2) return null;
+                                    const polyline = points.map((p, i) => {
+                                        const x = (i / Math.max(points.length - 1, 1)) * 1000;
+                                        const y = 300 - (p.value / maxValue) * 260;
+                                        return `${x},${y}`;
+                                    }).join(' ');
+                                    return (
+                                        <polyline
+                                            key={series.site}
+                                            fill="none"
+                                            stroke={palette[index % palette.length]}
+                                            strokeWidth="3"
+                                            points={polyline}
+                                        />
+                                    );
+                                });
+                            })()}
                         </svg>
 
-                        {/* Legend */}
                         <div className="absolute top-4 right-4 bg-white rounded-xl shadow-sm p-4 space-y-2">
-                            {[
-                                { name: 'Site A', color: '#1A73E8' },
-                                { name: 'Site B', color: '#27AE60' },
-                                { name: 'Site C', color: '#8B5CF6' },
-                                { name: 'Site D', color: '#F97316' },
-                            ].map((site) => (
-                                <div key={site.name} className="flex items-center gap-2">
-                                    <div className="w-4 h-0.5 rounded" style={{ backgroundColor: site.color }}></div>
-                                    <span className="text-sm text-gray-700">{site.name}</span>
-                                </div>
-                            ))}
+                            {trendSeriesBySite.map((series, index) => {
+                                const palette = ['#1A73E8', '#27AE60', '#8B5CF6', '#F97316'];
+                                return (
+                                    <div key={series.site} className="flex items-center gap-2">
+                                        <div className="w-4 h-0.5 rounded" style={{ backgroundColor: palette[index % palette.length] }}></div>
+                                        <span className="text-sm text-gray-700">{series.site}</span>
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
 
@@ -665,10 +748,10 @@ export default function AIAnalytics() {
                             <div>
                                 <p className="font-semibold text-gray-900 mb-2">AI-Generated Insights</p>
                                 <ul className="space-y-1 text-sm text-gray-700">
-                                    <li>• Revenue is trending upward across most sites with an average growth of 8.3%</li>
-                                    <li>• Site C shows irregular behavior — 27% drop this week requires investigation</li>
-                                    <li>• Site A demonstrates consistent performance above forecasted targets</li>
-                                    <li>• Seasonal patterns detected: expect 15% increase in next quarter</li>
+                                    <li>Revenue growth rate: {formattedGrowth}% month-over-month</li>
+                                    <li>Forecast accuracy: {formattedForecastAccuracy}%</li>
+                                    <li>Detected anomalies in last 30 days: {anomalyCount}</li>
+                                    <li>Stability score: {Math.round(stabilityScore)} / 100</li>
                                 </ul>
                             </div>
                         </div>
@@ -736,3 +819,5 @@ export default function AIAnalytics() {
         </div>
     );
 }
+
+

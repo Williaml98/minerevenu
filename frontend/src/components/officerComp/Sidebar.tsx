@@ -46,6 +46,11 @@ const items = [
         url: "/officer/report",
         icon: Shield,
     },
+    {
+        title: "Settings",
+        url: "/officer/settings",
+        icon: Shield,
+    }
 ];
 
 export default function Sidebar() {
