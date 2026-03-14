@@ -13,6 +13,10 @@ interface User {
     email: string;
     role: string;
     status: string;
+    employee_id?: string | null;
+    telephone?: string | null;
+    location?: string | null;
+    bachelor_degree?: string | null;
     isActive?: boolean;
     active?: boolean;
     is_active?: boolean;
@@ -23,6 +27,10 @@ interface NewUser {
     email: string;
     role: string;
     status: string;
+    employee_id: string;
+    telephone: string;
+    location: string;
+    bachelor_degree: File | null;
 }
 
 const UserManagementDashboard = () => {
@@ -42,13 +50,18 @@ const UserManagementDashboard = () => {
     const [showRoleDropdown, setShowRoleDropdown] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [editingUser, setEditingUser] = useState<User | null>(null);
+    const [editingDegreeFile, setEditingDegreeFile] = useState<File | null>(null);
     const [showEditModal, setShowEditModal] = useState(false);
     const usersPerPage = 5;
     const [newUser, setNewUser] = useState<NewUser>({
         username: '',
         email: '',
         role: 'Officer',
-        status: 'Active'
+        status: 'Active',
+        employee_id: '',
+        telephone: '',
+        location: '',
+        bachelor_degree: null
     });
 
 
@@ -144,19 +157,29 @@ const UserManagementDashboard = () => {
         }
 
         try {
-            await createUser({
-                username: newUser.username,
-                email: newUser.email,
-                role: newUser.role,
-            }).unwrap();
+            const formData = new FormData();
+            formData.append('username', newUser.username);
+            formData.append('email', newUser.email);
+            formData.append('role', newUser.role);
+            formData.append('status', newUser.status);
+            if (newUser.employee_id) formData.append('employee_id', newUser.employee_id);
+            if (newUser.telephone) formData.append('telephone', newUser.telephone);
+            if (newUser.location) formData.append('location', newUser.location);
+            if (newUser.bachelor_degree) formData.append('bachelor_degree', newUser.bachelor_degree);
+
+            await createUser(formData).unwrap();
 
             toast.success('User created successfully! An email has been sent with login details.');
             setShowAddUserModal(false);
             setNewUser({
                 username: '',
                 email: '',
-                role: 'Police',
-                status: 'Active'
+                role: 'Officer',
+                status: 'Active',
+                employee_id: '',
+                telephone: '',
+                location: '',
+                bachelor_degree: null
             });
             refetch();
         } catch (error) {
@@ -180,6 +203,7 @@ const UserManagementDashboard = () => {
 
     const handleEditUser = (user: User) => {
         setEditingUser(user);
+        setEditingDegreeFile(null);
         setShowEditModal(true);
     };
 
@@ -187,18 +211,24 @@ const UserManagementDashboard = () => {
         if (!editingUser) return;
 
         try {
+            const formData = new FormData();
+            formData.append('username', editingUser.username);
+            formData.append('email', editingUser.email);
+            formData.append('role', editingUser.role);
+            if (editingUser.employee_id) formData.append('employee_id', editingUser.employee_id);
+            if (editingUser.telephone) formData.append('telephone', editingUser.telephone);
+            if (editingUser.location) formData.append('location', editingUser.location);
+            if (editingDegreeFile) formData.append('bachelor_degree', editingDegreeFile);
+
             await updateUser({
                 id: editingUser.id,
-                data: {
-                    username: editingUser.username,
-                    email: editingUser.email,
-                    role: editingUser.role,
-                }
+                data: formData,
             }).unwrap();
 
             toast.success('User updated successfully');
             setShowEditModal(false);
             setEditingUser(null);
+            setEditingDegreeFile(null);
             refetch();
         } catch (error) {
             toast.error('Failed to update user. Please try again.');
@@ -376,12 +406,16 @@ const UserManagementDashboard = () => {
                 <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                     {/* Table Header */}
                     <div className="bg-gray-100 px-6 py-4">
-                        <div className="grid grid-cols-12 gap-4 text-sm font-semibold text-gray-700">
+                        <div className="grid grid-cols-15 gap-4 text-sm font-semibold text-gray-700">
                             <div className="col-span-2">Name</div>
                             <div className="col-span-3">Email</div>
-                            <div className="col-span-2">Role</div>
-                            <div className="col-span-2">Status</div>
-                            <div className="col-span-3">Action</div>
+                            <div className="col-span-1">Role</div>
+                            <div className="col-span-2">Employee ID</div>
+                            <div className="col-span-2">Telephone</div>
+                            <div className="col-span-2">Location</div>
+                            <div className="col-span-1">Degree</div>
+                            <div className="col-span-1">Status</div>
+                            <div className="col-span-1">Action</div>
                         </div>
                     </div>
 
@@ -390,7 +424,7 @@ const UserManagementDashboard = () => {
                         {currentUsers.length > 0 ? (
                             currentUsers.map((user) => (
                                 <div key={user.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
-                                    <div className="grid grid-cols-12 gap-4 items-center">
+                                    <div className="grid grid-cols-15 gap-4 items-center">
                                         <div className="col-span-2">
                                             <span className="text-sm font-medium text-gray-900">{user.username}</span>
                                         </div>
@@ -399,10 +433,33 @@ const UserManagementDashboard = () => {
                                                 {user.email}
                                             </a>
                                         </div>
-                                        <div className="col-span-2">
+                                        <div className="col-span-1">
                                             <span className="text-sm text-gray-900">{user.role}</span>
                                         </div>
                                         <div className="col-span-2">
+                                            <span className="text-sm text-gray-700">{user.employee_id || '-'}</span>
+                                        </div>
+                                        <div className="col-span-2">
+                                            <span className="text-sm text-gray-700">{user.telephone || '-'}</span>
+                                        </div>
+                                        <div className="col-span-2">
+                                            <span className="text-sm text-gray-700">{user.location || '-'}</span>
+                                        </div>
+                                        <div className="col-span-1">
+                                            {user.bachelor_degree ? (
+                                                <a
+                                                    href={user.bachelor_degree}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="text-xs text-blue-600 hover:text-blue-800 underline"
+                                                >
+                                                    View
+                                                </a>
+                                            ) : (
+                                                <span className="text-xs text-gray-500">-</span>
+                                            )}
+                                        </div>
+                                        <div className="col-span-1">
                                             <span
                                                 className={getStatusBadge(user.status || 'Inactive')}
                                                 onClick={() => handleToggleUserStatus(user.id)}
@@ -411,7 +468,7 @@ const UserManagementDashboard = () => {
                                                 {user.status || 'Inactive'}
                                             </span>
                                         </div>
-                                        <div className="col-span-3">
+                                        <div className="col-span-1">
                                             <div className="flex gap-2">
                                                 <button
                                                     onClick={() => handleEditUser(user)}
@@ -537,6 +594,45 @@ const UserManagementDashboard = () => {
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Employee ID
+                                </label>
+                                <input
+                                    type="text"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                    placeholder="Enter employee ID"
+                                    value={newUser.employee_id}
+                                    onChange={(e) => setNewUser({ ...newUser, employee_id: e.target.value })}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Telephone
+                                </label>
+                                <input
+                                    type="tel"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                    placeholder="Enter phone number"
+                                    value={newUser.telephone}
+                                    onChange={(e) => setNewUser({ ...newUser, telephone: e.target.value })}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Location
+                                </label>
+                                <input
+                                    type="text"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                    placeholder="Enter location"
+                                    value={newUser.location}
+                                    onChange={(e) => setNewUser({ ...newUser, location: e.target.value })}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Role *
                                 </label>
                                 <select
@@ -548,6 +644,18 @@ const UserManagementDashboard = () => {
                                     <option value="Admin">Admin</option>
                                     <option value="Stakeholder">Stakeholder</option>
                                 </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Bachelor Degree (optional)
+                                </label>
+                                <input
+                                    type="file"
+                                    accept=".pdf,.jpg,.jpeg,.png"
+                                    className="w-full text-sm text-gray-700 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                                    onChange={(e) => setNewUser({ ...newUser, bachelor_degree: e.target.files?.[0] || null })}
+                                />
                             </div>
 
                             <div>
@@ -630,6 +738,45 @@ const UserManagementDashboard = () => {
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Employee ID
+                                </label>
+                                <input
+                                    type="text"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                    placeholder="Enter employee ID"
+                                    value={editingUser.employee_id || ''}
+                                    onChange={(e) => setEditingUser({ ...editingUser, employee_id: e.target.value })}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Telephone
+                                </label>
+                                <input
+                                    type="tel"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                    placeholder="Enter phone number"
+                                    value={editingUser.telephone || ''}
+                                    onChange={(e) => setEditingUser({ ...editingUser, telephone: e.target.value })}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Location
+                                </label>
+                                <input
+                                    type="text"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                    placeholder="Enter location"
+                                    value={editingUser.location || ''}
+                                    onChange={(e) => setEditingUser({ ...editingUser, location: e.target.value })}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Role *
                                 </label>
                                 <select
@@ -641,6 +788,28 @@ const UserManagementDashboard = () => {
                                     <option value="Admin">Admin</option>
                                     <option value="Stakeholder">Stakeholder</option>
                                 </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Bachelor Degree (optional)
+                                </label>
+                                {editingUser.bachelor_degree && (
+                                    <a
+                                        href={editingUser.bachelor_degree}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="block text-xs text-blue-600 hover:text-blue-800 underline mb-2"
+                                    >
+                                        View current document
+                                    </a>
+                                )}
+                                <input
+                                    type="file"
+                                    accept=".pdf,.jpg,.jpeg,.png"
+                                    className="w-full text-sm text-gray-700 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                                    onChange={(e) => setEditingDegreeFile(e.target.files?.[0] || null)}
+                                />
                             </div>
                         </div>
 

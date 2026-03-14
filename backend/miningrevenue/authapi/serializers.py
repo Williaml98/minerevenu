@@ -21,7 +21,17 @@ class RegisterSerializer(serializers.ModelSerializer):
 class AdminUserCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('username', 'email', 'role', 'is_active') 
+        fields = (
+            'username',
+            'email',
+            'role',
+            'status',
+            'is_active',
+            'employee_id',
+            'telephone',
+            'location',
+            'bachelor_degree',
+        )
         
     def create(self, validated_data):
         # Generate a random password
@@ -34,6 +44,11 @@ class AdminUserCreateSerializer(serializers.ModelSerializer):
             password=password,
             role=validated_data['role'],
             is_active=validated_data.get('is_active', True),
+            status=validated_data.get('status', 'Active'),
+            employee_id=validated_data.get('employee_id'),
+            telephone=validated_data.get('telephone'),
+            location=validated_data.get('location'),
+            bachelor_degree=validated_data.get('bachelor_degree'),
         )
         
        
@@ -43,7 +58,19 @@ class AdminUserCreateSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'role', 'profile_picture', 'is_active')  
+        fields = (
+            'id',
+            'username',
+            'email',
+            'role',
+            'status',
+            'profile_picture',
+            'employee_id',
+            'telephone',
+            'location',
+            'bachelor_degree',
+            'is_active',
+        )
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):
     new_password = serializers.CharField(write_only=True, required=False, validators=[validate_password])
@@ -52,7 +79,17 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ['username', 'current_password', 'new_password', 'profile_picture', 'is_active']  
+        fields = [
+            'username',
+            'current_password',
+            'new_password',
+            'profile_picture',
+            'employee_id',
+            'telephone',
+            'location',
+            'bachelor_degree',
+            'is_active',
+        ]
 
     def validate(self, data):
         user = self.context['request'].user
@@ -73,6 +110,20 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             if instance.profile_picture:
                 instance.profile_picture.delete(save=False)
             instance.profile_picture = validated_data['profile_picture']
+
+        if 'employee_id' in validated_data:
+            instance.employee_id = validated_data['employee_id']
+
+        if 'telephone' in validated_data:
+            instance.telephone = validated_data['telephone']
+
+        if 'location' in validated_data:
+            instance.location = validated_data['location']
+
+        if 'bachelor_degree' in validated_data:
+            if instance.bachelor_degree:
+                instance.bachelor_degree.delete(save=False)
+            instance.bachelor_degree = validated_data['bachelor_degree']
 
         if 'is_active' in validated_data: 
             instance.is_active = validated_data['is_active']

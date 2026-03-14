@@ -31,6 +31,15 @@ class User(AbstractUser):
         null=True,
         help_text="Upload a profile picture",
     )
+    employee_id = models.CharField(max_length=50, blank=True, null=True)
+    telephone = models.CharField(max_length=30, blank=True, null=True)
+    location = models.CharField(max_length=120, blank=True, null=True)
+    bachelor_degree = models.FileField(
+        upload_to="degrees/",
+        blank=True,
+        null=True,
+        help_text="Upload bachelor degree document",
+    )
 
     def __str__(self):
         return f"{self.username} ({self.role})"

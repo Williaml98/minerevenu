@@ -209,10 +209,11 @@ export default function RevenueManagement() {
         }
     };
 
+    const currencyCode = process.env.NEXT_PUBLIC_CURRENCY ?? 'USD';
     const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('en-RW', {
+        return new Intl.NumberFormat(undefined, {
             style: 'currency',
-            currency: 'RWF',
+            currency: currencyCode,
             minimumFractionDigits: 0
         }).format(amount);
     };
@@ -430,7 +431,7 @@ export default function RevenueManagement() {
                                         <tr>
                                             <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Site Name</th>
                                             <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Revenue Source</th>
-                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Amount (RWF)</th>
+                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Amount ({currencyCode})</th>
                                             <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Date</th>
                                             <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Status</th>
                                             <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Submitted By</th>
@@ -611,7 +612,7 @@ export default function RevenueManagement() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Unit Price (RWF)</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Unit Price ({currencyCode})</label>
                                 <input
                                     type="number"
                                     step="1000"
@@ -704,7 +705,7 @@ export default function RevenueManagement() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Unit Price (RWF)</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Unit Price ({currencyCode})</label>
                                 <input
                                     type="number"
                                     step="1000"
