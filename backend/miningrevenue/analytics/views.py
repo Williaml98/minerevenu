@@ -19,11 +19,21 @@ class GenerateForecastAPIView(APIView):
     throttle_scope = "forecast_generate"
 
     def post(self, request):
-        predictions = forecast_next_steps(6)
+        try:
+            steps = int(request.data.get("steps", 6))
+        except (TypeError, ValueError):
+            steps = 6
+        steps = max(1, min(24, steps))
+
+        predictions = forecast_next_steps(steps)
 
         today = date.today()
 
         created_forecasts = []
+        replace = bool(request.data.get("replace", False))
+        if replace:
+            RevenueForecast.objects.filter(forecast_date__gte=today).delete()
+
         for i, value in enumerate(predictions):
             forecast_date = today + timedelta(days=30*(i+1))
 
@@ -54,12 +64,16 @@ class AnalyticsSummaryAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        mine_id = request.query_params.get("mine_id")
         today = timezone.now().date()
         last_30 = today - timedelta(days=30)
         prev_30 = today - timedelta(days=60)
 
         last_30_tx = SalesTransaction.objects.filter(date__gte=last_30, date__lte=today)
         prev_30_tx = SalesTransaction.objects.filter(date__gte=prev_30, date__lt=last_30)
+        if mine_id:
+            last_30_tx = last_30_tx.filter(mine_id=mine_id)
+            prev_30_tx = prev_30_tx.filter(mine_id=mine_id)
 
         last_30_revenue = last_30_tx.aggregate(total=Sum("total_amount"))["total"] or 0
         prev_30_revenue = prev_30_tx.aggregate(total=Sum("total_amount"))["total"] or 0
@@ -160,6 +174,12 @@ class AnomalyInsightsAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        mine_id = request.query_params.get("mine_id")
+        try:
+            limit = int(request.query_params.get("limit", 20))
+        except (TypeError, ValueError):
+            limit = 20
+        limit = max(1, min(100, limit))
         today = timezone.now().date()
         last_30 = today - timedelta(days=30)
 
@@ -168,6 +188,8 @@ class AnomalyInsightsAPIView(APIView):
             .select_related("mine")
             .order_by("-date")
         )
+        if mine_id:
+            tx_qs = tx_qs.filter(mine_id=mine_id)
 
         if not tx_qs.exists():
             return Response({"anomalies": []}, status=status.HTTP_200_OK)
@@ -202,13 +224,13 @@ class AnomalyInsightsAPIView(APIView):
         try:
             flags = detect_anomalies(df_features)
         except Exception:
-            return Response({"anomalies": []}, status=status.HTTP_200_OK)
+            return Response({"anomalies": [], "model_ready": False}, status=status.HTTP_200_OK)
 
         df["is_anomaly"] = flags
         anomalies_df = df[df["is_anomaly"] == 1].copy()
 
         anomalies = []
-        for _, row in anomalies_df.head(20).iterrows():
+        for _, row in anomalies_df.head(limit).iterrows():
             anomalies.append(
                 {
                     "transaction_id": row["id"],

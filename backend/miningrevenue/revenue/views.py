@@ -8,7 +8,7 @@ from ml.anomaly import detect_anomalies
 from django.utils import timezone
 from django.db.models import Count, Q, Sum
 from django.db.models.functions import TruncMonth
-from mining.models import Mine
+from mining.models import Mine, ProductionRecord
 import pandas as pd
 
 
@@ -49,6 +49,55 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
         if result[0] == 1:
             instance.is_flagged = True
             instance.save()
+
+    def create(self, request, *args, **kwargs):
+        mine_id = request.data.get("mine")
+        date_value = request.data.get("date")
+        quantity = request.data.get("quantity")
+
+        if not mine_id or not date_value or quantity is None:
+            return Response(
+                {"detail": "mine, date, and quantity are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            quantity_value = float(quantity)
+        except (TypeError, ValueError):
+            return Response(
+                {"detail": "quantity must be a number."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        production_qs = ProductionRecord.objects.filter(
+            mine_id=mine_id, date__lte=date_value
+        )
+        if not production_qs.exists():
+            return Response(
+                {
+                    "detail": "Production record required before sales. Create production first."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        total_produced = (
+            production_qs.aggregate(total=Sum("quantity_produced"))["total"] or 0
+        )
+        total_sold = (
+            SalesTransaction.objects.filter(mine_id=mine_id, date__lte=date_value)
+            .aggregate(total=Sum("quantity"))["total"]
+            or 0
+        )
+
+        if total_sold + quantity_value > total_produced:
+            return Response(
+                {
+                    "detail": "Sales quantity exceeds total produced quantity for this mine."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return super().create(request, *args, **kwargs)
 
     @action(detail=True, methods=["patch"], url_path="status")
     def update_status(self, request, pk=None):

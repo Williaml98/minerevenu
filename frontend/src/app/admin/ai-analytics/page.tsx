@@ -19,28 +19,40 @@ export default function AIAnalytics() {
     const [forecastPeriod, setForecastPeriod] = useState('30 days');
     const [trendView, setTrendView] = useState('Weekly');
 
+    const { data: minesData = [] } = useGetMineCompaniesQuery({});
+    const { data: salesData = [] } = useGetSalesTransactionsQuery({});
+    const selectedMineId = useMemo(() => {
+        if (forecastSite === 'All Sites') return undefined;
+        const found = minesData.find((m) => m.name === forecastSite);
+        return found?.id;
+    }, [forecastSite, minesData]);
+
     const {
         data: summaryData,
         isLoading: summaryLoading,
         isError: summaryError,
-    } = useGetAnalyticsSummaryQuery();
+    } = useGetAnalyticsSummaryQuery(
+        selectedMineId ? { mine_id: selectedMineId } : undefined
+    );
     const {
         data: anomaliesData,
         isLoading: anomaliesLoading,
         isError: anomaliesError,
-    } = useGetAnalyticsAnomaliesQuery();
+    } = useGetAnalyticsAnomaliesQuery(
+        selectedMineId ? { mine_id: selectedMineId, limit: 50 } : { limit: 50 }
+    );
     const {
         data: recommendationsData,
         isLoading: recsLoading,
         isError: recsError,
-    } = useGetAnalyticsRecommendationsQuery();
+    } = useGetAnalyticsRecommendationsQuery(
+        selectedMineId ? { mine_id: selectedMineId } : undefined
+    );
     const {
         data: forecastsData,
         isLoading: forecastsLoading,
         isError: forecastsError,
     } = useGetForecastsQuery();
-    const { data: minesData = [] } = useGetMineCompaniesQuery({});
-    const { data: salesData = [] } = useGetSalesTransactionsQuery({});
     const [regenerateForecasts, { isLoading: regenLoading }] = useRegenerateForecastsMutation();
     const [retrainModels, { isLoading: retrainLoading }] = useRetrainModelsMutation();
     const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -117,28 +129,16 @@ export default function AIAnalytics() {
 
     const forecastSeries = useMemo(() => {
         if (!forecastsData || !forecastsData.length) return [];
-        const sorted = [...forecastsData].sort(
-            (a, b) => new Date(a.forecast_date).getTime() - new Date(b.forecast_date).getTime()
-        );
+        const today = new Date();
+        const sorted = [...forecastsData]
+            .filter((f) => new Date(f.forecast_date) >= today)
+            .sort((a, b) => new Date(a.forecast_date).getTime() - new Date(b.forecast_date).getTime());
         return sorted.map((f) => ({
             date: new Date(f.forecast_date),
             value: f.predicted_revenue,
             label: new Date(f.forecast_date).toLocaleDateString(),
         }));
     }, [forecastsData]);
-
-    const forecastStats = useMemo(() => {
-        if (!forecastSeries.length) return null;
-        const values = forecastSeries.map((f) => f.value);
-        return {
-            expected: forecastSeries[0].value,
-            expectedLabel: forecastSeries[0].label,
-            high: Math.max(...values),
-            low: Math.min(...values),
-        };
-    }, [forecastSeries]);
-
-    const forecastedRevenue = forecastSeries.at(0)?.value ?? summaryData?.summary.last_30_revenue ?? 0;
 
     const periodDays = useMemo(() => {
         switch (forecastPeriod) {
@@ -153,11 +153,20 @@ export default function AIAnalytics() {
         }
     }, [forecastPeriod]);
 
-    const selectedMineId = useMemo(() => {
-        if (forecastSite === 'All Sites') return null;
-        const found = minesData.find((m) => m.name === forecastSite);
-        return found?.id ?? null;
-    }, [forecastSite, minesData]);
+    const forecastStats = useMemo(() => {
+        const forecastCount = Math.max(1, Math.round(periodDays / 30));
+        const windowSeries = forecastSeries.slice(0, forecastCount);
+        if (!windowSeries.length) return null;
+        const values = windowSeries.map((f) => f.value);
+        return {
+            expected: windowSeries[0].value,
+            expectedLabel: windowSeries[0].label,
+            high: Math.max(...values),
+            low: Math.min(...values),
+        };
+    }, [forecastSeries, periodDays]);
+
+    const forecastedRevenue = forecastSeries.at(0)?.value ?? summaryData?.summary.last_30_revenue ?? 0;
 
     const actualSeries = useMemo(() => {
         const today = new Date();
@@ -307,7 +316,7 @@ export default function AIAnalytics() {
                     </div>
                     <div className="flex flex-wrap gap-3">
                         <button
-                            onClick={() => handleAction(() => regenerateForecasts().unwrap(), "Forecasts regenerated")}
+                            onClick={() => handleAction(() => regenerateForecasts({ steps: 6, replace: true }).unwrap(), "Forecasts regenerated")}
                             disabled={regenLoading}
                             className="px-4 py-2 rounded-lg border border-blue-600 text-blue-600 hover:bg-blue-50 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
                         >
@@ -510,6 +519,11 @@ export default function AIAnalytics() {
                     </div>
 
                     <div className="h-80 relative">
+                        {!forecastSeries.length && !actualSeries.length && !forecastsLoading && (
+                            <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-400">
+                                No forecast or revenue data available for this period.
+                            </div>
+                        )}
                         <svg width="100%" height="100%" viewBox="0 0 1000 320">
                             {[0, 1, 2, 3, 4].map((i) => (
                                 <line
@@ -608,6 +622,11 @@ export default function AIAnalytics() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                     <div className="bg-white rounded-2xl shadow-sm p-6">
                         <h2 className="text-xl font-bold text-gray-900 mb-6">AI-Detected Anomalies</h2>
+                        {anomaliesData?.model_ready === false && (
+                            <p className="text-sm text-amber-600 mb-3">
+                                Anomaly model is not trained yet. Results may be incomplete.
+                            </p>
+                        )}
                         <div className="space-y-3 max-h-[500px] overflow-y-auto">
                             {anomalies.length === 0 && !anomaliesLoading && (
                                 <p className="text-sm text-gray-500">
@@ -698,6 +717,11 @@ export default function AIAnalytics() {
                     </div>
 
                     <div className="h-80 relative mb-6">
+                        {!trendSeriesBySite.length && (
+                            <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-400">
+                                Not enough data to build a trend view.
+                            </div>
+                        )}
                         <svg width="100%" height="100%" viewBox="0 0 1000 320">
                             {[0, 1, 2, 3, 4].map((i) => (
                                 <line key={i} x1="0" y1={i * 80} x2="1000" y2={i * 80} stroke="#E5E7EB" strokeWidth="1" />

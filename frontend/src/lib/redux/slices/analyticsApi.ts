@@ -25,28 +25,43 @@ export interface RecommendationItem {
     detail: string;
 }
 
+export interface AnalyticsQueryParams {
+    mine_id?: number;
+    limit?: number;
+}
+
 export const analyticsApi = apiSlice.injectEndpoints({
     endpoints: (builder) => ({
-        getAnalyticsSummary: builder.query<{ summary: AnalyticsSummary }, void>({
-            query: () => "/analytics/summary/",
+        getAnalyticsSummary: builder.query<{ summary: AnalyticsSummary }, AnalyticsQueryParams | void>({
+            query: (params) => ({
+                url: "/analytics/summary/",
+                params,
+            }),
             providesTags: ["Analytics"],
         }),
-        getAnalyticsAnomalies: builder.query<{ anomalies: AnomalyInsight[] }, void>({
-            query: () => "/analytics/anomalies/",
+        getAnalyticsAnomalies: builder.query<{ anomalies: AnomalyInsight[]; model_ready?: boolean }, AnalyticsQueryParams | void>({
+            query: (params) => ({
+                url: "/analytics/anomalies/",
+                params,
+            }),
             providesTags: ["Analytics"],
         }),
-        getAnalyticsRecommendations: builder.query<{ recommendations: RecommendationItem[] }, void>({
-            query: () => "/analytics/recommendations/",
+        getAnalyticsRecommendations: builder.query<{ recommendations: RecommendationItem[] }, AnalyticsQueryParams | void>({
+            query: (params) => ({
+                url: "/analytics/recommendations/",
+                params,
+            }),
             providesTags: ["Analytics"],
         }),
         getForecasts: builder.query<{ id: number; forecast_date: string; predicted_revenue: number; model_version: string }[], void>({
             query: () => "/analytics/forecasts/",
             providesTags: ["Forecasts"],
         }),
-        regenerateForecasts: builder.mutation<unknown, void>({
-            query: () => ({
+        regenerateForecasts: builder.mutation<unknown, { steps?: number; replace?: boolean } | void>({
+            query: (body) => ({
                 url: "/analytics/generate-forecast/",
                 method: "POST",
+                body,
             }),
             invalidatesTags: ["Analytics", "Forecasts"],
         }),

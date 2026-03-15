@@ -5,7 +5,8 @@ import {
     useCreateSalesTransactionMutation,
     useGetProductionRecordsQuery,
     useGetSalesTransactionsQuery,
-    useGetMineCompaniesQuery
+    useGetMineCompaniesQuery,
+    useUpdateSalesTransactionStatusMutation
 } from "@/lib/redux/slices/MiningSlice";
 import {
     Download, Plus, Eye, Check, X,
@@ -20,7 +21,7 @@ interface RevenueEntry {
     revenueSource: string;
     amount: number;
     dateSubmitted: string;
-    status: 'Pending Review' | 'Approved' | 'Rejected';
+    status: 'Pending' | 'Approved' | 'Rejected';
     submittedBy: string;
     evidenceDoc?: string;
     description?: string;
@@ -65,6 +66,7 @@ interface SalesTransaction {
     total_amount: number;
     payment_method: string;
     is_flagged: boolean;
+    status?: 'Pending' | 'Approved' | 'Rejected';
     created_at: string;
     mine: number;
     created_by: number;
@@ -83,11 +85,12 @@ interface MineCompany {
 export default function RevenueManagement() {
     // RTK Query hooks with proper types
     const { data: productionRecords = [], isLoading: loadingProduction } = useGetProductionRecordsQuery({}) as { data: ProductionRecord[], isLoading: boolean };
-    const { data: salesTransactions = [], isLoading: loadingSales } = useGetSalesTransactionsQuery({}) as { data: SalesTransaction[], isLoading: boolean };
+    const { data: salesTransactions = [], isLoading: loadingSales, refetch: refetchSales } = useGetSalesTransactionsQuery({}) as { data: SalesTransaction[], isLoading: boolean; refetch: () => void };
     const { data: mineCompanies = [], isLoading: loadingMines } = useGetMineCompaniesQuery({}) as { data: MineCompany[], isLoading: boolean };
 
     const [createProductionRecord, { isLoading: creatingProduction }] = useCreateProductionRecordMutation();
     const [createSalesTransaction, { isLoading: creatingSales }] = useCreateSalesTransactionMutation();
+    const [updateSalesTransactionStatus, { isLoading: updatingStatus }] = useUpdateSalesTransactionStatusMutation();
 
     // Local state
     const [entries, setEntries] = useState<RevenueEntry[]>([]);
@@ -153,29 +156,29 @@ export default function RevenueManagement() {
                 revenueSource: 'Production',
                 amount: record.total_revenue || (record.quantity_produced * record.unit_price),
                 dateSubmitted: record.date,
-                status: 'Pending Review',
-                submittedBy: 'System',
-                type: 'production',
-                recordId: record.id
+                    status: 'Pending',
+                    submittedBy: 'System',
+                    type: 'production',
+                    recordId: record.id
+                });
             });
-        });
 
         salesTransactions.forEach((sale: SalesTransaction) => {
             const mine = mineCompanies.find((m: MineCompany) => m.id === sale.mine);
-            combined.push({
-                id: `sales-${sale.id}`,
-                siteName: mine?.name || `Mine #${sale.mine}`,
-                siteId: sale.mine,
-                revenueSource: 'Sales',
-                amount: sale.total_amount || (sale.quantity * sale.unit_price),
-                dateSubmitted: sale.date,
-                status: sale.is_flagged ? 'Rejected' : 'Pending Review',
-                submittedBy: `User #${sale.created_by}`,
-                type: 'sales',
-                recordId: sale.id,
-                description: `Payment: ${sale.payment_method}`
+                combined.push({
+                    id: `sales-${sale.id}`,
+                    siteName: mine?.name || `Mine #${sale.mine}`,
+                    siteId: sale.mine,
+                    revenueSource: 'Sales',
+                    amount: sale.total_amount || (sale.quantity * sale.unit_price),
+                    dateSubmitted: sale.date,
+                    status: sale.status || (sale.is_flagged ? 'Rejected' : 'Pending'),
+                    submittedBy: `User #${sale.created_by}`,
+                    type: 'sales',
+                    recordId: sale.id,
+                    description: `Payment: ${sale.payment_method}`
+                });
             });
-        });
 
         combined.sort((a, b) => new Date(b.dateSubmitted).getTime() - new Date(a.dateSubmitted).getTime());
 
@@ -202,11 +205,16 @@ export default function RevenueManagement() {
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'Pending Review': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+            case 'Pending': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
             case 'Approved': return 'bg-green-100 text-green-700 border-green-200';
             case 'Rejected': return 'bg-red-100 text-red-700 border-red-200';
             default: return 'bg-gray-100 text-gray-700 border-gray-200';
         }
+    };
+
+    const formatStatusLabel = (status: RevenueEntry['status']) => {
+        if (status === 'Pending') return 'Pending Review';
+        return status;
     };
 
     const currencyCode = process.env.NEXT_PUBLIC_CURRENCY ?? 'USD';
@@ -244,7 +252,8 @@ export default function RevenueManagement() {
             alert('Production record created successfully!');
         } catch (error) {
             console.error('Failed to create production record:', error);
-            alert('Failed to create production record');
+            const err = error as { data?: { detail?: string } };
+            alert(err?.data?.detail || 'Failed to create production record');
         }
     };
 
@@ -276,7 +285,8 @@ export default function RevenueManagement() {
             alert('Sales transaction created successfully!');
         } catch (error) {
             console.error('Failed to create sales transaction:', error);
-            alert('Failed to create sales transaction');
+            const err = error as { data?: { detail?: string } };
+            alert(err?.data?.detail || 'Failed to create sales transaction');
         }
     };
 
@@ -292,12 +302,27 @@ export default function RevenueManagement() {
         setShowRejectModal(true);
     };
 
-    const confirmAction = () => {
+    const confirmAction = async () => {
         if (selectedEntry) {
+            if (selectedEntry.type !== 'sales') {
+                alert('Only sales entries can be approved or rejected.');
+                setShowApproveModal(false);
+                setShowRejectModal(false);
+                setSelectedEntry(null);
+                return;
+            }
+
             const newStatus = actionType === 'approve' ? 'Approved' : 'Rejected';
-            setEntries(entries.map(e =>
-                e.id === selectedEntry.id ? { ...e, status: newStatus as RevenueEntry['status'] } : e
-            ));
+            try {
+                await updateSalesTransactionStatus({
+                    id: selectedEntry.recordId,
+                    status: newStatus
+                }).unwrap();
+                await refetchSales();
+            } catch (error) {
+                console.error('Failed to update status:', error);
+                alert('Failed to update status. Please try again.');
+            }
             setShowApproveModal(false);
             setShowRejectModal(false);
             setSelectedEntry(null);
@@ -372,7 +397,7 @@ export default function RevenueManagement() {
                                         className="px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                                     >
                                         <option>All</option>
-                                        <option>Pending Review</option>
+                                        <option>Pending</option>
                                         <option>Approved</option>
                                         <option>Rejected</option>
                                     </select>
@@ -464,7 +489,7 @@ export default function RevenueManagement() {
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <span className={`px-3 py-1.5 rounded-full text-xs font-medium border ${getStatusColor(entry.status)}`}>
-                                                            {entry.status}
+                                                            {formatStatusLabel(entry.status)}
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 text-gray-600">{entry.submittedBy}</td>
@@ -480,10 +505,11 @@ export default function RevenueManagement() {
                                                             >
                                                                 <Eye size={18} className="text-blue-600" />
                                                             </button>
-                                                            {entry.status === 'Pending Review' && (
+                                                            {entry.type === 'sales' && entry.status === 'Pending' && (
                                                                 <>
                                                                     <button
                                                                         onClick={() => handleApprove(entry)}
+                                                                        disabled={updatingStatus}
                                                                         className="p-2 hover:bg-green-50 rounded-lg transition"
                                                                         title="Approve"
                                                                     >
@@ -491,6 +517,7 @@ export default function RevenueManagement() {
                                                                     </button>
                                                                     <button
                                                                         onClick={() => handleReject(entry)}
+                                                                        disabled={updatingStatus}
                                                                         className="p-2 hover:bg-red-50 rounded-lg transition"
                                                                         title="Reject"
                                                                     >
@@ -568,6 +595,9 @@ export default function RevenueManagement() {
                             </button>
                         </div>
                         <div className="space-y-4">
+                            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                                Sales can only be recorded after production. The system will reject sales that exceed total produced quantity.
+                            </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Mine Site</label>
                                 <select
@@ -797,7 +827,7 @@ export default function RevenueManagement() {
                                 <div className="bg-gray-50 rounded-xl p-4">
                                     <p className="text-sm text-gray-600 mb-1">Status</p>
                                     <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-medium border ${getStatusColor(selectedEntry.status)}`}>
-                                        {selectedEntry.status}
+                                        {formatStatusLabel(selectedEntry.status)}
                                     </span>
                                 </div>
                             </div>
@@ -819,13 +849,14 @@ export default function RevenueManagement() {
                             )}
                         </div>
                         <div className="flex gap-3 mt-6">
-                            {selectedEntry.status === 'Pending Review' && (
+                            {selectedEntry.type === 'sales' && selectedEntry.status === 'Pending' && (
                                 <>
                                     <button
                                         onClick={() => {
                                             setShowViewModal(false);
                                             handleApprove(selectedEntry);
                                         }}
+                                        disabled={updatingStatus}
                                         className="flex-1 px-4 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition font-medium flex items-center justify-center gap-2"
                                     >
                                         <Check size={20} />
@@ -836,6 +867,7 @@ export default function RevenueManagement() {
                                             setShowViewModal(false);
                                             handleReject(selectedEntry);
                                         }}
+                                        disabled={updatingStatus}
                                         className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition font-medium flex items-center justify-center gap-2"
                                     >
                                         <X size={20} />
