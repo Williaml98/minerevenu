@@ -8,6 +8,7 @@ import {
     Shield,
     LogOut,
     Menu,
+    MessageSquare,
     X
 } from "lucide-react";
 import { useState } from "react";
@@ -45,6 +46,11 @@ const items = [
         title: "Reports",
         url: "/officer/report",
         icon: Shield,
+    },
+    {
+        title: "Communication & Feedback",
+        url: "/officer/collaboration_hub",
+        icon: MessageSquare,
     },
     {
         title: "Settings",
