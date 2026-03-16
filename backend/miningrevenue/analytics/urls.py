@@ -7,6 +7,7 @@ from .views import (
     AnomalyInsightsAPIView,
     RecommendationAPIView,
     TrainModelsAPIView,
+    SyncModelsAPIView,
 )
 
 router = DefaultRouter()
@@ -15,6 +16,7 @@ router.register(r"forecasts", RevenueForecastViewSet, basename="forecast")
 urlpatterns = [
     path("generate-forecast/", GenerateForecastAPIView.as_view(), name="generate-forecast"),
     path("train-models/", TrainModelsAPIView.as_view(), name="train-models"),
+    path("sync-models/", SyncModelsAPIView.as_view(), name="sync-models"),
     path("summary/", AnalyticsSummaryAPIView.as_view(), name="analytics-summary"),
     path("anomalies/", AnomalyInsightsAPIView.as_view(), name="analytics-anomalies"),
     path("recommendations/", RecommendationAPIView.as_view(), name="analytics-recommendations"),

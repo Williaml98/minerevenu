@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useMemo, useEffect } from 'react';
 import {
@@ -135,6 +135,8 @@ interface PaymentMethodData {
 interface DashboardData {
     totalRevenue: number;
     totalProduction: number;
+    totalSoldQuantity: number;
+    availableProduction: number;
     avgUnitPrice: number;
     activeMines: number;
     flaggedTransactions: number;
@@ -222,6 +224,11 @@ export default function AdminDashboard() {
             (sum: number, prod: ProductionRecord) => sum + prod.quantity_produced,
             0
         );
+        const totalSoldQuantity = salesTransactions.reduce(
+            (sum: number, sale: SalesTransaction) => sum + sale.quantity,
+            0
+        );
+        const availableProduction = Math.max(0, totalProduction - totalSoldQuantity);
 
         // Calculate average unit price
         const avgUnitPrice = salesTransactions.length > 0
@@ -307,6 +314,8 @@ export default function AdminDashboard() {
         return {
             totalRevenue,
             totalProduction,
+            totalSoldQuantity,
+            availableProduction,
             avgUnitPrice,
             activeMines,
             flaggedTransactions,
@@ -330,7 +339,7 @@ export default function AdminDashboard() {
             newAlerts.push({
                 id: '1',
                 type: 'critical',
-                icon: '🚨',
+                icon: 'ALERT',
                 message: `${dashboardData.flaggedTransactions} flagged transaction(s) require immediate attention`,
                 time: new Date().toLocaleTimeString(),
                 category: 'Compliance',
@@ -344,7 +353,7 @@ export default function AdminDashboard() {
             newAlerts.push({
                 id: '2',
                 type: 'warning',
-                icon: '⚠️',
+                icon: 'WARN',
                 message: `${lowPerformingSites.length} site(s) showing below-average revenue`,
                 time: new Date().toLocaleTimeString(),
                 category: 'Performance',
@@ -356,7 +365,7 @@ export default function AdminDashboard() {
         newAlerts.push({
             id: '3',
             type: 'success',
-            icon: '📈',
+            icon: 'TREND',
             message: `AI forecast predicts ${dashboardData.forecastAccuracy}% accuracy for next quarter`,
             time: new Date().toLocaleTimeString(),
             category: 'AI Insights',
@@ -364,13 +373,13 @@ export default function AdminDashboard() {
         });
 
         // Check production vs sales
-        if (dashboardData.totalProduction > 0 && dashboardData.totalSales > 0) {
-            const ratio = dashboardData.totalSales / dashboardData.totalProduction;
+        if (dashboardData.totalProduction > 0 && dashboardData.totalSoldQuantity > 0) {
+            const ratio = dashboardData.totalSoldQuantity / dashboardData.totalProduction;
             if (ratio < 0.5) {
                 newAlerts.push({
                     id: '4',
                     type: 'warning',
-                    icon: '🏭',
+                    icon: 'MINE',
                     message: 'Production exceeds sales by significant margin',
                     time: new Date().toLocaleTimeString(),
                     category: 'Inventory',
@@ -435,7 +444,7 @@ export default function AdminDashboard() {
                     {change && (
                         <span className={`text-xs font-medium px-2 py-1 rounded-full flex items-center gap-1
                             ${change.positive ? 'bg-green-500/30 text-green-50' : 'bg-red-500/30 text-red-50'}`}>
-                            {change.positive ? '↑' : '↓'} {change.value}
+                            {change.positive ? 'UP' : 'DOWN'} {change.value}
                         </span>
                     )}
                 </div>
@@ -477,11 +486,11 @@ export default function AdminDashboard() {
 
     const getStatusBadge = (status: ActivityItem['status']): React.ReactElement => {
         const badges = {
-            completed: { bg: 'bg-green-100', text: 'text-green-700', label: 'Completed', icon: '✓' },
-            review: { bg: 'bg-amber-100', text: 'text-amber-700', label: 'Review', icon: '⚠️' },
-            done: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Done', icon: '📊' },
-            success: { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'Success', icon: '✨' },
-            pending: { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Pending', icon: '⏳' }
+            completed: { bg: 'bg-green-100', text: 'text-green-700', label: 'Completed', icon: 'OK' },
+            review: { bg: 'bg-amber-100', text: 'text-amber-700', label: 'Review', icon: 'WARN' },
+            done: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Done', icon: 'DONE' },
+            success: { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'Success', icon: 'STAR' },
+            pending: { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Pending', icon: 'WAIT' }
         };
         const badge = badges[status] || badges.completed;
         return (
@@ -609,7 +618,7 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Quick Stats Row */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                     <div className="bg-white rounded-lg p-3 border border-slate-200 flex items-center gap-3">
                         <div className="p-2 bg-indigo-50 rounded-lg">
                             <Truck size={18} className="text-indigo-500" />
@@ -627,8 +636,8 @@ export default function AdminDashboard() {
                             <p className="text-xs text-slate-500">Sales vs Production</p>
                             <p className="text-sm font-bold text-slate-900">
                                 {dashboardData.totalProduction > 0
-                                    ? `${Math.min(100, ((dashboardData.totalSales || 0) / dashboardData.totalProduction) * 100).toFixed(1)}%`
-                                    : '—'}
+                                    ? `${Math.min(100, ((dashboardData.totalSoldQuantity || 0) / dashboardData.totalProduction) * 100).toFixed(1)}%`
+                                    : 'N/A'}
                             </p>
                         </div>
                     </div>
@@ -861,7 +870,7 @@ export default function AdminDashboard() {
                                         <p className="text-xs font-medium text-slate-900 truncate">{activity.activity}</p>
                                         <div className="flex items-center gap-1 mt-0.5">
                                             <span className="text-[10px] text-slate-500">{activity.user}</span>
-                                            <span className="text-[10px] text-slate-300">•</span>
+                                            <span className="text-[10px] text-slate-300">-</span>
                                             <span className="text-[10px] text-slate-500">{activity.time}</span>
                                         </div>
                                     </div>
@@ -913,3 +922,6 @@ export default function AdminDashboard() {
         </div>
     );
 }
+
+
+

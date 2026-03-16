@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import React, { useState, useEffect } from 'react';
 import {
     useCreateProductionRecordMutation,
@@ -8,6 +8,7 @@ import {
     useGetMineCompaniesQuery,
     useUpdateSalesTransactionStatusMutation
 } from "@/lib/redux/slices/MiningSlice";
+import { useGetAnalyticsAnomaliesQuery, useSyncModelsMutation } from "@/lib/redux/slices/analyticsApi";
 import {
     Download, Plus, Eye, Check, X,
     AlertTriangle, FileText, ChevronRight
@@ -87,10 +88,12 @@ export default function RevenueManagement() {
     const { data: productionRecords = [], isLoading: loadingProduction } = useGetProductionRecordsQuery({}) as { data: ProductionRecord[], isLoading: boolean };
     const { data: salesTransactions = [], isLoading: loadingSales, refetch: refetchSales } = useGetSalesTransactionsQuery({}) as { data: SalesTransaction[], isLoading: boolean; refetch: () => void };
     const { data: mineCompanies = [], isLoading: loadingMines } = useGetMineCompaniesQuery({}) as { data: MineCompany[], isLoading: boolean };
+    const { data: anomaliesData, isLoading: loadingAnomalies } = useGetAnalyticsAnomaliesQuery({ limit: 3 });
 
     const [createProductionRecord, { isLoading: creatingProduction }] = useCreateProductionRecordMutation();
     const [createSalesTransaction, { isLoading: creatingSales }] = useCreateSalesTransactionMutation();
     const [updateSalesTransactionStatus, { isLoading: updatingStatus }] = useUpdateSalesTransactionStatusMutation();
+    const [syncModels, { isLoading: syncingModels }] = useSyncModelsMutation();
 
     // Local state
     const [entries, setEntries] = useState<RevenueEntry[]>([]);
@@ -109,12 +112,14 @@ export default function RevenueManagement() {
     const [showExportModal, setShowExportModal] = useState(false);
     const [selectedEntry, setSelectedEntry] = useState<RevenueEntry | null>(null);
     const [actionType, setActionType] = useState<'approve' | 'reject'>('approve');
+    const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
     // Form states
+    const todayISO = new Date().toISOString().split('T')[0];
     const [productionForm, setProductionForm] = useState<ProductionFormData>({
         mineId: null,
         mineName: '',
-        date: new Date().toISOString().split('T')[0],
+        date: todayISO,
         quantity_produced: 0,
         unit_price: 0
     });
@@ -122,7 +127,7 @@ export default function RevenueManagement() {
     const [salesForm, setSalesForm] = useState<SalesFormData>({
         mineId: null,
         mineName: '',
-        date: new Date().toISOString().split('T')[0],
+        date: todayISO,
         quantity: 0,
         unit_price: 0,
         payment_method: 'Bank Transfer'
@@ -226,9 +231,25 @@ export default function RevenueManagement() {
         }).format(amount);
     };
 
+    const getAvailableQuantity = (mineId: number | null, dateValue: string) => {
+        if (!mineId || !dateValue) return null;
+        const cutoff = new Date(dateValue);
+        const produced = productionRecords
+            .filter((record) => record.mine === mineId && new Date(record.date) <= cutoff)
+            .reduce((sum, record) => sum + (record.quantity_produced || 0), 0);
+        const sold = salesTransactions
+            .filter((sale) => sale.mine === mineId && new Date(sale.date) <= cutoff)
+            .reduce((sum, sale) => sum + (sale.quantity || 0), 0);
+        return Math.max(0, produced - sold);
+    };
+
     const handleCreateProduction = async () => {
         if (!productionForm.mineId || !productionForm.date || productionForm.quantity_produced <= 0 || productionForm.unit_price <= 0) {
             alert('Please fill all fields correctly');
+            return;
+        }
+        if (productionForm.date > todayISO) {
+            alert('Production date cannot be in the future');
             return;
         }
 
@@ -244,12 +265,19 @@ export default function RevenueManagement() {
             setProductionForm({
                 mineId: null,
                 mineName: '',
-                date: new Date().toISOString().split('T')[0],
+                date: todayISO,
                 quantity_produced: 0,
                 unit_price: 0
             });
             setShowAddProductionModal(false);
             alert('Production record created successfully!');
+            try {
+                await syncModels().unwrap();
+                setSyncMessage({ type: 'success', text: 'AI models synced and forecasts refreshed.' });
+            } catch (err) {
+                const apiErr = err as { data?: { detail?: string } };
+                setSyncMessage({ type: 'error', text: apiErr?.data?.detail || 'AI sync failed. Try again later.' });
+            }
         } catch (error) {
             console.error('Failed to create production record:', error);
             const err = error as { data?: { detail?: string } };
@@ -260,6 +288,15 @@ export default function RevenueManagement() {
     const handleCreateSales = async () => {
         if (!salesForm.mineId || !salesForm.date || salesForm.quantity <= 0 || salesForm.unit_price <= 0 || !salesForm.payment_method) {
             alert('Please fill all fields correctly');
+            return;
+        }
+        if (salesForm.date > todayISO) {
+            alert('Sales date cannot be in the future');
+            return;
+        }
+        const availableQty = getAvailableQuantity(salesForm.mineId, salesForm.date);
+        if (availableQty !== null && salesForm.quantity > availableQty) {
+            alert('Sales quantity exceeds available produced quantity for this mine and date.');
             return;
         }
 
@@ -276,13 +313,20 @@ export default function RevenueManagement() {
             setSalesForm({
                 mineId: null,
                 mineName: '',
-                date: new Date().toISOString().split('T')[0],
+                date: todayISO,
                 quantity: 0,
                 unit_price: 0,
                 payment_method: 'Bank Transfer'
             });
             setShowAddSalesModal(false);
             alert('Sales transaction created successfully!');
+            try {
+                await syncModels().unwrap();
+                setSyncMessage({ type: 'success', text: 'AI models synced and forecasts refreshed.' });
+            } catch (err) {
+                const apiErr = err as { data?: { detail?: string } };
+                setSyncMessage({ type: 'error', text: apiErr?.data?.detail || 'AI sync failed. Try again later.' });
+            }
         } catch (error) {
             console.error('Failed to create sales transaction:', error);
             const err = error as { data?: { detail?: string } };
@@ -342,6 +386,8 @@ export default function RevenueManagement() {
     const siteNames = ['All Sites', ...new Set(entries.map(e => e.siteName))];
 
     const isLoading = loadingProduction || loadingSales || loadingMines;
+    const aiAlerts = anomaliesData?.anomalies ?? [];
+    const aiModelReady = anomaliesData?.model_ready !== false;
 
     if (isLoading) {
         return (
@@ -364,6 +410,14 @@ export default function RevenueManagement() {
                         <div className="mb-8">
                             <h1 className="text-3xl font-bold text-gray-900">Revenue Management</h1>
                             <p className="text-gray-600 mt-2">Oversee, validate, and manage mining revenue from all sites.</p>
+                            {syncMessage && (
+                                <div className={`mt-3 rounded-xl px-4 py-2 text-sm ${syncMessage.type === 'success'
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    : 'bg-red-50 text-red-700 border border-red-200'
+                                    }`}>
+                                    {syncMessage.text}
+                                </div>
+                            )}
                         </div>
 
                         {/* Filters & Actions Bar */}
@@ -410,7 +464,7 @@ export default function RevenueManagement() {
                                             className="px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                                             placeholder="From"
                                         />
-                                        <span className="text-gray-400">→</span>
+                                        <span className="text-gray-400">-&gt;</span>
                                         <input
                                             type="date"
                                             value={dateTo}
@@ -558,20 +612,32 @@ export default function RevenueManagement() {
                                 AI Revenue Alerts
                             </h3>
                             <div className="space-y-3 mb-4">
-                                {entries
-                                    .filter(e => e.status === 'Rejected')
-                                    .slice(0, 3)
-                                    .map((entry) => (
-                                        <div key={entry.id} className="flex items-start gap-3 p-3 bg-red-50 rounded-xl border border-red-200">
-                                            <AlertTriangle size={18} className="text-red-600 mt-0.5 flex-shrink-0" />
-                                            <p className="text-sm text-gray-700">
-                                                {entry.revenueSource} from {entry.siteName} requires review
-                                            </p>
-                                        </div>
-                                    ))}
-                                {entries.filter(e => e.status === 'Rejected').length === 0 && (
+                                {loadingAnomalies && (
                                     <div className="text-center text-gray-500 text-sm py-4">
-                                        No alerts at this time
+                                        Loading AI alerts...
+                                    </div>
+                                )}
+                                {!loadingAnomalies && !aiModelReady && (
+                                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-800">
+                                        AI anomaly model is not trained yet. Retrain models in AI Analytics to enable alerts.
+                                    </div>
+                                )}
+                                {!loadingAnomalies && aiModelReady && aiAlerts.length > 0 && (
+                                    aiAlerts.map((alert) => (
+                                        <div key={alert.transaction_id} className="flex items-start gap-3 p-3 bg-red-50 rounded-xl border border-red-200">
+                                            <AlertTriangle size={18} className="text-red-600 mt-0.5 flex-shrink-0" />
+                                            <div className="text-sm text-gray-700">
+                                                <p className="font-medium">Anomaly at {alert.mine_name}</p>
+                                                <p className="text-xs text-gray-500">
+                                                    {new Date(alert.date).toLocaleDateString()} - {formatCurrency(alert.amount)}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                                {!loadingAnomalies && aiModelReady && aiAlerts.length === 0 && (
+                                    <div className="text-center text-gray-500 text-sm py-4">
+                                        No AI alerts at this time
                                     </div>
                                 )}
                             </div>
@@ -587,7 +653,7 @@ export default function RevenueManagement() {
             {/* Add Production Modal */}
             {showAddProductionModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6">
+            <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6">
                         <div className="flex items-center justify-between mb-6">
                             <h2 className="text-2xl font-bold text-gray-900">Add Production Record</h2>
                             <button onClick={() => setShowAddProductionModal(false)} className="p-1 hover:bg-gray-100 rounded-lg">
@@ -627,6 +693,7 @@ export default function RevenueManagement() {
                                     type="date"
                                     value={productionForm.date}
                                     onChange={(e) => setProductionForm({ ...productionForm, date: e.target.value })}
+                                    max={todayISO}
                                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 />
                             </div>
@@ -670,10 +737,10 @@ export default function RevenueManagement() {
                             </button>
                             <button
                                 onClick={handleCreateProduction}
-                                disabled={creatingProduction}
+                                disabled={creatingProduction || syncingModels}
                                 className="flex-1 px-4 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {creatingProduction ? 'Creating...' : 'Save Production'}
+                                {creatingProduction ? 'Creating...' : syncingModels ? 'Updating AI...' : 'Save Production'}
                             </button>
                         </div>
                     </div>
@@ -720,6 +787,7 @@ export default function RevenueManagement() {
                                     type="date"
                                     value={salesForm.date}
                                     onChange={(e) => setSalesForm({ ...salesForm, date: e.target.value })}
+                                    max={todayISO}
                                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 />
                             </div>
@@ -758,6 +826,19 @@ export default function RevenueManagement() {
                                     <option value="Check">Check</option>
                                 </select>
                             </div>
+                            {salesForm.mineId && salesForm.date && (
+                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                                    Available production up to {salesForm.date}:{" "}
+                                    <span className="font-semibold">
+                                        {getAvailableQuantity(salesForm.mineId, salesForm.date) ?? 0} tons
+                                    </span>
+                                    {getAvailableQuantity(salesForm.mineId, salesForm.date) === 0 && (
+                                        <div className="text-xs text-amber-700 mt-1">
+                                            No production recorded yet. Add production before sales.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                             {salesForm.quantity > 0 && salesForm.unit_price > 0 && (
                                 <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
                                     <p className="text-sm text-gray-600">Total Amount:</p>
@@ -776,10 +857,10 @@ export default function RevenueManagement() {
                             </button>
                             <button
                                 onClick={handleCreateSales}
-                                disabled={creatingSales}
+                                disabled={creatingSales || syncingModels}
                                 className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {creatingSales ? 'Creating...' : 'Save Sales'}
+                                {creatingSales ? 'Creating...' : syncingModels ? 'Updating AI...' : 'Save Sales'}
                             </button>
                         </div>
                     </div>
@@ -1041,3 +1122,4 @@ export default function RevenueManagement() {
         </div>
     );
 }
+

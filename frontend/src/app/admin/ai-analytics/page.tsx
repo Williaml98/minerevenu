@@ -57,10 +57,11 @@ export default function AIAnalytics() {
     const [retrainModels, { isLoading: retrainLoading }] = useRetrainModelsMutation();
     const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+    const currencyCode = process.env.NEXT_PUBLIC_CURRENCY ?? "USD";
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
-            currency: 'USD',
+            currency: currencyCode,
             minimumFractionDigits: 0,
             maximumFractionDigits: 0
         }).format(amount);
@@ -114,17 +115,23 @@ export default function AIAnalytics() {
     };
 
     const formattedGrowth = useMemo(() => {
-        const g = summaryData?.summary.growth_rate ?? 0;
+        const g = summaryData?.summary.growth_rate;
+        if (g == null) return "N/A";
         return (g * 100).toFixed(1);
     }, [summaryData]);
+    const growthValue = summaryData?.summary.growth_rate;
 
     const formattedForecastAccuracy = useMemo(() => {
-        const acc = summaryData?.summary.forecast_accuracy;
-        if (acc == null) return "—";
+        const acc = summaryData?.summary.forecast_accuracy ?? summaryData?.summary.forecast_accuracy_provisional;
+        if (acc == null) return "N/A";
         return acc.toFixed(1);
     }, [summaryData]);
+    const formattedForecastAccuracyLabel =
+        formattedForecastAccuracy === "N/A"
+            ? "N/A"
+            : `${formattedForecastAccuracy}%`;
 
-    const stabilityScore = summaryData?.summary.stability_score ?? 0;
+    const stabilityScore = summaryData?.summary.stability_score;
     const anomalyCount = summaryData?.summary.anomaly_count ?? 0;
 
     const forecastSeries = useMemo(() => {
@@ -167,6 +174,7 @@ export default function AIAnalytics() {
     }, [forecastSeries, periodDays]);
 
     const forecastedRevenue = forecastSeries.at(0)?.value ?? summaryData?.summary.last_30_revenue ?? 0;
+    const accuracyBasis = summaryData?.summary.forecast_accuracy_basis;
 
     const actualSeries = useMemo(() => {
         const today = new Date();
@@ -282,6 +290,15 @@ export default function AIAnalytics() {
 
     const anyLoading = summaryLoading || anomaliesLoading || recsLoading || forecastsLoading;
     const anyError = summaryError || anomaliesError || recsError || forecastsError;
+    const modelStatus = summaryData?.summary.model_status;
+    const forecastStatus = modelStatus?.forecast;
+    const anomalyStatus = modelStatus?.anomaly;
+
+    const formatDate = (value?: string | null) => {
+        if (!value) return "N/A";
+        const d = new Date(value);
+        return Number.isNaN(d.getTime()) ? "N/A" : d.toLocaleString();
+    };
 
     const handleAction = async (fn: () => Promise<unknown>, successText: string) => {
         setActionMessage(null);
@@ -290,7 +307,15 @@ export default function AIAnalytics() {
             setActionMessage({ type: 'success', text: successText });
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (err: unknown) {
-            setActionMessage({ type: 'error', text: 'Action failed. Please check your permissions or try again.' });
+            const apiErr = err as { data?: { detail?: string }; status?: number };
+            const detail = apiErr?.data?.detail;
+            const status = apiErr?.status;
+            const message = detail
+                ? detail
+                : status === 403
+                    ? 'Not authorized to perform this action.'
+                    : 'Action failed. Please check your permissions or try again.';
+            setActionMessage({ type: 'error', text: message });
         }
     };
 
@@ -344,6 +369,60 @@ export default function AIAnalytics() {
                     </div>
                 )}
 
+                {/* AI Engine Status */}
+                <div className="mb-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="bg-white rounded-2xl shadow-sm p-6 lg:col-span-2">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-lg font-semibold text-slate-900">AI Engine Status</h2>
+                            <span className={`text-xs px-2 py-1 rounded-full ${forecastStatus?.ready && anomalyStatus?.ready ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                                {forecastStatus?.ready && anomalyStatus?.ready ? "All Models Ready" : "Model Attention Required"}
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="rounded-xl border border-slate-200 p-4">
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className="text-sm font-medium text-slate-700">Forecast Model</p>
+                                    <span className={`text-xs px-2 py-1 rounded-full ${forecastStatus?.ready ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
+                                        {forecastStatus?.ready ? "Ready" : "Not Trained"}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-slate-500">Version: {forecastStatus?.model_version ?? "N/A"}</p>
+                                <p className="text-xs text-slate-500">Last trained: {formatDate(forecastStatus?.last_trained)}</p>
+                                <p className="text-xs text-slate-500">Data points: {forecastStatus?.data_points ?? "N/A"}</p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 p-4">
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className="text-sm font-medium text-slate-700">Anomaly Model</p>
+                                    <span className={`text-xs px-2 py-1 rounded-full ${anomalyStatus?.ready ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
+                                        {anomalyStatus?.ready ? "Ready" : "Not Trained"}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-slate-500">Version: {anomalyStatus?.model_version ?? "N/A"}</p>
+                                <p className="text-xs text-slate-500">Last trained: {formatDate(anomalyStatus?.last_trained)}</p>
+                                <p className="text-xs text-slate-500">Data points: {anomalyStatus?.data_points ?? "N/A"}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="bg-white rounded-2xl shadow-sm p-6">
+                        <h3 className="text-sm font-medium text-slate-600 mb-2">Accuracy Check</h3>
+                        <p className="text-3xl font-bold text-slate-900">{formattedForecastAccuracyLabel}</p>
+                        <p className="text-xs text-slate-500 mt-2">
+                            {accuracyBasis === "provisional"
+                                ? "Provisional accuracy based on latest forecasts vs last 30 days revenue."
+                                : "Accuracy compares past forecasts to realized revenue."}
+                        </p>
+                        {formattedForecastAccuracyLabel === "N/A" && (
+                            <p className="text-xs text-slate-500 mt-2">
+                                Add more dated sales to generate mature accuracy.
+                            </p>
+                        )}
+                        {!forecastStatus?.ready && (
+                            <p className="text-xs text-amber-600 mt-3">
+                                Forecast model not trained yet. Run "Retrain AI Models" to activate predictions.
+                            </p>
+                        )}
+                    </div>
+                </div>
                 {/* Section 1 - Key AI Metrics */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <div className="bg-white rounded-2xl shadow-sm p-6">
@@ -353,7 +432,7 @@ export default function AIAnalytics() {
                         </div>
                         <div className="mb-3">
                             <p className="text-3xl font-bold text-gray-900">
-                                {forecastedRevenue ? formatCurrency(forecastedRevenue) : '—'}
+                                {forecastedRevenue ? formatCurrency(forecastedRevenue) : 'N/A'}
                             </p>
                             <p className="text-xs text-gray-500 mt-1">
                                 Based on latest forecast model output
@@ -381,16 +460,16 @@ export default function AIAnalytics() {
                         </div>
                         <div className="flex items-center gap-2">
                             <span
-                                className={`${(summaryData?.summary.growth_rate ?? 0) >= 0
-                                    ? "text-green-600"
-                                    : "text-red-600"
+                                className={`${growthValue == null
+                                    ? "text-gray-500"
+                                    : growthValue >= 0
+                                        ? "text-green-600"
+                                        : "text-red-600"
                                     } text-sm font-semibold`}
                             >
-                                {Number.isFinite(summaryData?.summary.growth_rate ?? 0)
-                                    ? `${formattedGrowth}%`
-                                    : "—"}
+                                {formattedGrowth !== "N/A" ? `${formattedGrowth}%` : "N/A"}
                             </span>
-                            <span className="text-xs text-gray-500">Month‑over‑month growth</span>
+                            <span className="text-xs text-gray-500">Month-over-month growth</span>
                         </div>
                     </div>
 
@@ -432,28 +511,38 @@ export default function AIAnalytics() {
                             <div className="relative w-32 h-32">
                                 <svg className="transform -rotate-90" width="128" height="128">
                                     <circle cx="64" cy="64" r="56" stroke="#E5E7EB" strokeWidth="12" fill="none" />
-                                    <circle
-                                        cx="64"
-                                        cy="64"
-                                        r="56"
-                                        stroke="#8B5CF6"
-                                        strokeWidth="12"
-                                        fill="none"
-                                        strokeDasharray={`${2 * Math.PI * 56}`}
-                                        strokeDashoffset={`${2 * Math.PI * 56 * (1 - stabilityScore / 100)}`}
-                                        strokeLinecap="round"
-                                    />
+                                    {stabilityScore != null && (
+                                        <circle
+                                            cx="64"
+                                            cy="64"
+                                            r="56"
+                                            stroke="#8B5CF6"
+                                            strokeWidth="12"
+                                            fill="none"
+                                            strokeDasharray={`${2 * Math.PI * 56}`}
+                                            strokeDashoffset={`${2 * Math.PI * 56 * (1 - stabilityScore / 100)}`}
+                                            strokeLinecap="round"
+                                        />
+                                    )}
                                 </svg>
                                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                                     <span className="text-3xl font-bold text-gray-900">
-                                        {Math.round(stabilityScore)}
+                                        {stabilityScore == null ? "N/A" : Math.round(stabilityScore)}
                                     </span>
-                                    <span className="text-xs text-gray-500">/ 100</span>
+                                    <span className="text-xs text-gray-500">{stabilityScore == null ? "" : "/ 100"}</span>
                                 </div>
                             </div>
                         </div>
                         <div className="text-center">
-                            <span className="inline-block px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-semibold">Stable</span>
+                            <span
+                                className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
+                                    stabilityScore == null
+                                        ? "bg-amber-100 text-amber-700"
+                                        : "bg-green-100 text-green-700"
+                                }`}
+                            >
+                                {stabilityScore == null ? "Insufficient data" : "Stable"}
+                            </span>
                         </div>
                     </div>
 
@@ -464,24 +553,30 @@ export default function AIAnalytics() {
                         </div>
                         <div className="mb-3">
                             <p className="text-3xl font-bold text-gray-900">
-                                {formattedForecastAccuracy}%
+                                {formattedForecastAccuracyLabel}
                             </p>
                             <p className="text-xs text-gray-500 mt-1">Model Performance</p>
                         </div>
                         <div className="h-12 mb-3">
                             <div className="flex items-end justify-between h-full gap-1">
-                                {[85, 88, 90, 89, 91, 92, 93, 92].map((val, i) => (
-                                    <div
-                                        key={i}
-                                        className="flex-1 bg-gradient-to-t from-green-500 to-green-400 rounded-t"
-                                        style={{ height: `${val}%` }}
-                                    ></div>
-                                ))}
+                                {formattedForecastAccuracyLabel === "N/A" ? (
+                                    <div className="text-xs text-gray-400">Waiting for historical accuracy data...</div>
+                                ) : (
+                                    [85, 88, 90, 89, 91, 92, 93, 92].map((val, i) => (
+                                        <div
+                                            key={i}
+                                            className="flex-1 bg-gradient-to-t from-green-500 to-green-400 rounded-t"
+                                            style={{ height: `${val}%` }}
+                                        ></div>
+                                    ))
+                                )}
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
                             <span className="text-xs text-gray-500">
-                                Accuracy compares recent forecasts to realized revenue.
+                                {accuracyBasis === "provisional"
+                                    ? "Provisional accuracy based on latest revenue."
+                                    : "Accuracy compares past forecasts to realized revenue."}
                             </span>
                         </div>
                     </div>
@@ -600,19 +695,19 @@ export default function AIAnalytics() {
                                 Expected Revenue {forecastStats?.expectedLabel ? `(${forecastStats.expectedLabel})` : ''}
                             </p>
                             <p className="text-lg font-bold text-gray-900">
-                                {forecastStats ? formatCurrency(forecastStats.expected) : '—'}
+                                {forecastStats ? formatCurrency(forecastStats.expected) : 'N/A'}
                             </p>
                         </div>
                         <div>
                             <p className="text-xs text-gray-500 mb-1">Forecasted High</p>
                             <p className="text-lg font-bold text-green-600">
-                                {forecastStats ? formatCurrency(forecastStats.high) : '—'}
+                                {forecastStats ? formatCurrency(forecastStats.high) : 'N/A'}
                             </p>
                         </div>
                         <div>
                             <p className="text-xs text-gray-500 mb-1">Forecasted Low</p>
                             <p className="text-lg font-bold text-red-600">
-                                {forecastStats ? formatCurrency(forecastStats.low) : '—'}
+                                {forecastStats ? formatCurrency(forecastStats.low) : 'N/A'}
                             </p>
                         </div>
                     </div>
@@ -773,9 +868,9 @@ export default function AIAnalytics() {
                                 <p className="font-semibold text-gray-900 mb-2">AI-Generated Insights</p>
                                 <ul className="space-y-1 text-sm text-gray-700">
                                     <li>Revenue growth rate: {formattedGrowth}% month-over-month</li>
-                                    <li>Forecast accuracy: {formattedForecastAccuracy}%</li>
+                                    <li>Forecast accuracy: {formattedForecastAccuracyLabel}</li>
                                     <li>Detected anomalies in last 30 days: {anomalyCount}</li>
-                                    <li>Stability score: {Math.round(stabilityScore)} / 100</li>
+                                    <li>Stability score: {stabilityScore == null ? "N/A" : `${Math.round(stabilityScore)} / 100`}</li>
                                 </ul>
                             </div>
                         </div>
@@ -843,5 +938,11 @@ export default function AIAnalytics() {
         </div>
     );
 }
+
+
+
+
+
+
 
 

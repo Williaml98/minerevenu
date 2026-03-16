@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import React, { useState, useMemo } from 'react';
 import {
     FileText,
@@ -25,7 +25,7 @@ interface Report {
     period: string;
     generatedOn: string;
     createdBy: string;
-    dataType: 'audit' | 'companies' | 'production' | 'sales' | 'forecast';
+    dataType: 'audit' | 'companies' | 'production' | 'sales' | 'forecast' | 'availability';
 }
 
 interface DateRange {
@@ -34,10 +34,10 @@ interface DateRange {
 }
 
 type ReportType = 'Daily' | 'Weekly' | 'Monthly' | 'Yearly';
-type DataType = 'audit' | 'companies' | 'production' | 'sales' | 'forecast';
+type DataType = 'audit' | 'companies' | 'production' | 'sales' | 'forecast' | 'availability';
 type DataRecord = Record<string, unknown>;
 type ReportColumn = { header: string; dataKey: string };
-type SalesRow = { total_amount: number; unit_price: number };
+type SalesRow = { total_amount: number; unit_price: number; quantity: number };
 type ProductionRow = { quantity_produced: number };
 type CompanyRow = { id: number | string; name: string };
 
@@ -66,6 +66,49 @@ export default function ReportCenter() {
     const [selectedSite, setSelectedSite] = useState<string>('all');
     const [isGenerating, setIsGenerating] = useState(false);
     const [exportFormat, setExportFormat] = useState<'pdf' | 'excel'>('pdf');
+
+    const availabilityData = useMemo(() => {
+        const fromDate = new Date(dateRange.from);
+        const toDate = new Date(dateRange.to);
+        const siteFilterId = selectedSite === 'all' ? null : parseInt(selectedSite);
+        const companyNameById = new Map((companies as CompanyRow[]).map((c) => [Number(c.id), c.name]));
+
+        const producedByMine = new Map<number, number>();
+        (productionRecords as DataRecord[]).forEach((record) => {
+            const recordDate = new Date(record["date"] as string);
+            if (Number.isNaN(recordDate.getTime())) return;
+            if (recordDate < fromDate || recordDate > toDate) return;
+            const mineId = Number(record["mine"]);
+            if (siteFilterId !== null && mineId !== siteFilterId) return;
+            const qty = Number(record["quantity_produced"] || 0);
+            producedByMine.set(mineId, (producedByMine.get(mineId) || 0) + qty);
+        });
+
+        const soldByMine = new Map<number, number>();
+        (salesTransactions as DataRecord[]).forEach((sale) => {
+            const saleDate = new Date(sale["date"] as string);
+            if (Number.isNaN(saleDate.getTime())) return;
+            if (saleDate < fromDate || saleDate > toDate) return;
+            const mineId = Number(sale["mine"]);
+            if (siteFilterId !== null && mineId !== siteFilterId) return;
+            const qty = Number(sale["quantity"] || 0);
+            soldByMine.set(mineId, (soldByMine.get(mineId) || 0) + qty);
+        });
+
+        const mineIds = new Set<number>([...producedByMine.keys(), ...soldByMine.keys()]);
+        return Array.from(mineIds).map((mineId) => {
+            const produced = producedByMine.get(mineId) || 0;
+            const sold = soldByMine.get(mineId) || 0;
+            return {
+                mine_id: mineId,
+                mine_name: companyNameById.get(mineId) || `Mine #${mineId}`,
+                produced_quantity: produced,
+                sold_quantity: sold,
+                available_quantity: Math.max(0, produced - sold),
+                as_of: dateRange.to,
+            };
+        });
+    }, [productionRecords, salesTransactions, companies, dateRange, selectedSite]);
 
     // Filter data based on date range and site
     const filteredData = useMemo(() => {
@@ -96,10 +139,12 @@ export default function ReportCenter() {
                 return filterBySite(filterByDate(salesTransactions as DataRecord[], 'date'));
             case 'forecast':
                 return filterByDate(forecasts as DataRecord[], 'forecast_date');
+            case 'availability':
+                return availabilityData as DataRecord[];
             default:
                 return [];
         }
-    }, [selectedDataType, dateRange, selectedSite, auditLogs, companies, productionRecords, salesTransactions, forecasts]);
+    }, [selectedDataType, dateRange, selectedSite, auditLogs, companies, productionRecords, salesTransactions, forecasts, availabilityData]);
 
     // Generate report
     const generateReport = () => {
@@ -187,6 +232,17 @@ export default function ReportCenter() {
                     { header: 'Created', dataKey: 'created_at' }
                 ];
                 break;
+            case 'availability':
+                data = availabilityData as DataRecord[];
+                columns = [
+                    { header: 'Mine ID', dataKey: 'mine_id' },
+                    { header: 'Mine Name', dataKey: 'mine_name' },
+                    { header: 'Produced Quantity', dataKey: 'produced_quantity' },
+                    { header: 'Sold Quantity', dataKey: 'sold_quantity' },
+                    { header: 'Available Quantity', dataKey: 'available_quantity' },
+                    { header: 'As Of', dataKey: 'as_of' }
+                ];
+                break;
         }
 
         // Add table
@@ -244,6 +300,10 @@ export default function ReportCenter() {
                 data = forecasts as DataRecord[];
                 sheetName = 'Forecasts';
                 break;
+            case 'availability':
+                data = availabilityData as DataRecord[];
+                sheetName = 'Availability';
+                break;
         }
 
         const ws = XLSX.utils.json_to_sheet(data);
@@ -275,6 +335,7 @@ export default function ReportCenter() {
             case 'production': return <TrendingUp size={16} className="text-green-600" />;
             case 'sales': return <PieChart size={16} className="text-orange-600" />;
             case 'forecast': return <AlertCircle size={16} className="text-purple-600" />;
+            case 'availability': return <TrendingUp size={16} className="text-indigo-600" />;
         }
     };
 
@@ -282,11 +343,12 @@ export default function ReportCenter() {
     const summaryStats = useMemo(() => {
         const totalRevenue = (salesTransactions as SalesRow[]).reduce((sum: number, sale: SalesRow) => sum + sale.total_amount, 0);
         const totalProduction = (productionRecords as ProductionRow[]).reduce((sum: number, prod: ProductionRow) => sum + prod.quantity_produced, 0);
+        const totalSoldQuantity = (salesTransactions as SalesRow[]).reduce((sum: number, sale: SalesRow) => sum + (sale.quantity || 0), 0);
         const avgUnitPrice = salesTransactions.length > 0
             ? (salesTransactions as SalesRow[]).reduce((sum: number, sale: SalesRow) => sum + sale.unit_price, 0) / salesTransactions.length
             : 0;
 
-        return { totalRevenue, totalProduction, avgUnitPrice };
+        return { totalRevenue, totalProduction, avgUnitPrice, totalSoldQuantity, availableProduction: Math.max(0, totalProduction - totalSoldQuantity) };
     }, [salesTransactions, productionRecords]);
 
     return (
@@ -299,7 +361,7 @@ export default function ReportCenter() {
                 </div>
 
                 {/* Summary Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                     <div className="bg-white rounded-2xl shadow-sm p-6">
                         <div className="flex items-center justify-between mb-2">
                             <h3 className="text-sm font-medium text-gray-500">Total Revenue</h3>
@@ -308,7 +370,7 @@ export default function ReportCenter() {
                         <p className="text-2xl font-bold text-gray-900">
                             {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(summaryStats.totalRevenue)}
                         </p>
-                        <p className="text-sm text-green-600 mt-2">↑ 12.5% from last period</p>
+                        <p className="text-sm text-green-600 mt-2">Up 12.5% from last period</p>
                     </div>
 
                     <div className="bg-white rounded-2xl shadow-sm p-6">
@@ -317,7 +379,7 @@ export default function ReportCenter() {
                             <TrendingUp size={20} className="text-green-600" />
                         </div>
                         <p className="text-2xl font-bold text-gray-900">{summaryStats.totalProduction.toFixed(2)} tons</p>
-                        <p className="text-sm text-green-600 mt-2">↑ 8.2% from last period</p>
+                        <p className="text-sm text-green-600 mt-2">Up 8.2% from last period</p>
                     </div>
 
                     <div className="bg-white rounded-2xl shadow-sm p-6">
@@ -328,7 +390,17 @@ export default function ReportCenter() {
                         <p className="text-2xl font-bold text-gray-900">
                             {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(summaryStats.avgUnitPrice)}
                         </p>
-                        <p className="text-sm text-yellow-600 mt-2">→ Stable</p>
+                        <p className="text-sm text-yellow-600 mt-2">Stable Stable</p>
+                    </div>
+                    <div className="bg-white rounded-2xl shadow-sm p-6">
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-sm font-medium text-gray-500">Available Production</h3>
+                            <TrendingUp size={20} className="text-indigo-600" />
+                        </div>
+                        <p className="text-2xl font-bold text-gray-900">
+                            {summaryStats.availableProduction.toFixed(2)} tons
+                        </p>
+                        <p className="text-sm text-indigo-600 mt-2">Current balance</p>
                     </div>
                 </div>
 
@@ -365,6 +437,7 @@ export default function ReportCenter() {
                                 <option value="production">Production Records</option>
                                 <option value="sales">Sales Transactions</option>
                                 <option value="forecast">Forecasts</option>
+                                <option value="availability">Available Production</option>
                             </select>
                         </div>
 
@@ -589,3 +662,9 @@ export default function ReportCenter() {
         </div>
     );
 }
+
+
+
+
+
+

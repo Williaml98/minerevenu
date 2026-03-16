@@ -10,6 +10,7 @@ from django.db.models import Count, Q, Sum
 from django.db.models.functions import TruncMonth
 from mining.models import Mine, ProductionRecord
 import pandas as pd
+from datetime import timedelta
 
 
 class IsAdminOrOfficerOrReadOnly(permissions.BasePermission):
@@ -37,18 +38,43 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
         instance = serializer.save(created_by=self.request.user)
 
         # Prepare data for anomaly detection
-        data = pd.DataFrame([{
-            "Quantity_Tons": instance.quantity,
-            "Unit_Price_USD": instance.unit_price,
-            "Total_Amount_USD": instance.total_amount,
-            "Allocation_Percentage": 10 
-        }])
+        try:
+            last_30 = timezone.now().date() - timedelta(days=30)
+            recent_total = (
+                SalesTransaction.objects.filter(
+                    mine=instance.mine,
+                    date__gte=last_30,
+                )
+                .exclude(id=instance.id)
+                .aggregate(total=Sum("total_amount"))["total"]
+                or 0
+            )
+            allocation_base = recent_total + (instance.total_amount or 0)
+            allocation_pct = (
+                (instance.total_amount / allocation_base) * 100
+                if allocation_base > 0
+                else 100.0
+            )
 
-        result = detect_anomalies(data)
+            data = pd.DataFrame(
+                [
+                    {
+                        "Quantity_Tons": instance.quantity,
+                        "Unit_Price_USD": instance.unit_price,
+                        "Total_Amount_USD": instance.total_amount,
+                        "Allocation_Percentage": allocation_pct,
+                    }
+                ]
+            )
 
-        if result[0] == 1:
-            instance.is_flagged = True
-            instance.save()
+            result = detect_anomalies(data)
+
+            if result[0] == 1:
+                instance.is_flagged = True
+                instance.save(update_fields=["is_flagged"])
+        except Exception:
+            # If the anomaly model is not ready, skip flagging for now.
+            pass
 
     def create(self, request, *args, **kwargs):
         mine_id = request.data.get("mine")

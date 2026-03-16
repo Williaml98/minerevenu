@@ -82,8 +82,8 @@ REST_FRAMEWORK = {
         "password_reset": "10/hour",
         "audit": "120/hour",
         "security": "200/hour",
-        "forecast_generate": "5/hour",
-        "train_models": "2/hour",
+        "forecast_generate": "30/hour",
+        "train_models": "30/hour",
     },
 }
 

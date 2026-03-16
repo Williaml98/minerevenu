@@ -3,10 +3,16 @@ import { apiSlice } from "./ApiSlice";
 export interface AnalyticsSummary {
     last_30_revenue: number;
     prev_30_revenue: number;
-    growth_rate: number;
-    stability_score: number;
+    growth_rate: number | null;
+    stability_score: number | null;
     anomaly_count: number;
     forecast_accuracy: number | null;
+    forecast_accuracy_provisional?: number | null;
+    forecast_accuracy_basis?: "mature" | "provisional" | null;
+    model_status?: {
+        forecast: ModelStatus;
+        anomaly: ModelStatus;
+    };
 }
 
 export interface AnomalyInsight {
@@ -25,6 +31,14 @@ export interface RecommendationItem {
     detail: string;
 }
 
+export interface ModelStatus {
+    ready: boolean;
+    model_version: string | null;
+    last_trained: string | null;
+    data_points: number | null;
+    metrics?: Record<string, number | string | null> | null;
+}
+
 export interface AnalyticsQueryParams {
     mine_id?: number;
     limit?: number;
@@ -39,7 +53,7 @@ export const analyticsApi = apiSlice.injectEndpoints({
             }),
             providesTags: ["Analytics"],
         }),
-        getAnalyticsAnomalies: builder.query<{ anomalies: AnomalyInsight[]; model_ready?: boolean }, AnalyticsQueryParams | void>({
+        getAnalyticsAnomalies: builder.query<{ anomalies: AnomalyInsight[]; model_ready?: boolean; model_version?: string | null }, AnalyticsQueryParams | void>({
             query: (params) => ({
                 url: "/analytics/anomalies/",
                 params,
@@ -65,12 +79,22 @@ export const analyticsApi = apiSlice.injectEndpoints({
             }),
             invalidatesTags: ["Analytics", "Forecasts"],
         }),
-        retrainModels: builder.mutation<
+    retrainModels: builder.mutation<
+        { message: string; forecast_metrics: unknown; anomaly_status: unknown },
+        void
+    >({
+        query: () => ({
+            url: "/analytics/train-models/",
+            method: "POST",
+        }),
+        invalidatesTags: ["Analytics", "Forecasts"],
+    }),
+        syncModels: builder.mutation<
             { message: string; forecast_metrics: unknown; anomaly_status: unknown },
             void
         >({
             query: () => ({
-                url: "/analytics/train-models/",
+                url: "/analytics/sync-models/",
                 method: "POST",
             }),
             invalidatesTags: ["Analytics", "Forecasts"],
@@ -85,5 +109,6 @@ export const {
     useGetForecastsQuery,
     useRegenerateForecastsMutation,
     useRetrainModelsMutation,
+    useSyncModelsMutation,
 } = analyticsApi;
 

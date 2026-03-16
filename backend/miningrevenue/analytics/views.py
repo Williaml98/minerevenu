@@ -1,18 +1,22 @@
-from rest_framework.views import APIView
-from rest_framework.response import Response
+from datetime import date, timedelta
+
+import pandas as pd
+from django.db.models import Sum
+from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.permissions import IsAuthenticated
-from datetime import date, timedelta
-from django.utils import timezone
-from django.db.models import Sum, Avg
-import pandas as pd
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from ml.forecasting import forecast_next_steps, train_forecasting_model
-from ml.anomaly import detect_anomalies, train_anomaly_model
-from .models import RevenueForecast
-from revenue.models import SalesTransaction
-from .serializers import RevenueForecastSerializer
 from authapi.permissions import IsAdmin
+from ml.anomaly import detect_anomalies, train_anomaly_model
+from ml.forecasting import forecast_next_steps, train_forecasting_model, MODEL_VERSION_ARIMA as FORECAST_MODEL_VERSION
+from ml.registry import get_model_info
+from revenue.models import SalesTransaction
+from .models import RevenueForecast
+from .serializers import RevenueForecastSerializer
+from django.core.management import call_command
+
 
 class GenerateForecastAPIView(APIView):
     permission_classes = [IsAuthenticated, IsAdmin]
@@ -25,7 +29,13 @@ class GenerateForecastAPIView(APIView):
             steps = 6
         steps = max(1, min(24, steps))
 
-        predictions = forecast_next_steps(steps)
+        try:
+            predictions = forecast_next_steps(steps)
+        except Exception:
+            return Response(
+                {"detail": "Forecast model is not available. Train the model first."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
         today = date.today()
 
@@ -34,18 +44,22 @@ class GenerateForecastAPIView(APIView):
         if replace:
             RevenueForecast.objects.filter(forecast_date__gte=today).delete()
 
+        model_info = get_model_info("forecast")
+        model_version = model_info.get("model_version") or FORECAST_MODEL_VERSION
+
         for i, value in enumerate(predictions):
-            forecast_date = today + timedelta(days=30*(i+1))
+            forecast_date = today + timedelta(days=30 * (i + 1))
 
             obj = RevenueForecast.objects.create(
                 forecast_date=forecast_date,
-                predicted_revenue=value
+                predicted_revenue=value,
+                model_version=model_version,
             )
 
             created_forecasts.append(obj)
 
         return Response(RevenueForecastSerializer(created_forecasts, many=True).data)
-    
+
 
 class RevenueForecastViewSet(viewsets.ModelViewSet):
     queryset = RevenueForecast.objects.all()
@@ -78,11 +92,13 @@ class AnalyticsSummaryAPIView(APIView):
         last_30_revenue = last_30_tx.aggregate(total=Sum("total_amount"))["total"] or 0
         prev_30_revenue = prev_30_tx.aggregate(total=Sum("total_amount"))["total"] or 0
 
-        # Simple month‑over‑month growth rate
+        # Simple month-over-month growth rate
         if prev_30_revenue > 0:
             growth_rate = (last_30_revenue - prev_30_revenue) / prev_30_revenue
+        elif last_30_revenue > 0:
+            growth_rate = None
         else:
-            growth_rate = 0.0
+            growth_rate = None
 
         # Revenue stability: lower volatility => higher stability score
         daily_revenue = (
@@ -97,11 +113,13 @@ class AnalyticsSummaryAPIView(APIView):
             if revenues
             else 0
         )
-        stability_score = 100.0
-        if avg_rev > 0 and variance > 0:
-            # Invert normalized variance and clamp 0‑100
+        stability_score = None
+        if len(revenues) >= 5 and avg_rev > 0 and variance > 0:
+            # Invert normalized variance and clamp 0-100
             normalized_volatility = min(variance / (avg_rev**2), 2.0)
             stability_score = max(0.0, min(100.0, (1.0 - normalized_volatility) * 100))
+        elif len(revenues) >= 5 and avg_rev > 0 and variance == 0:
+            stability_score = 100.0
 
         # Basic anomaly statistics using the trained anomaly model (if available)
         anomaly_count = 0
@@ -127,31 +145,55 @@ class AnalyticsSummaryAPIView(APIView):
                 )
                 # Derive a simple allocation percentage as a proxy
                 total_sum = float(df["Total_Amount_USD"].sum() or 0) or 1.0
-                df["Allocation_Percentage"] = (
-                    df["Total_Amount_USD"] / total_sum
-                ) * 100.0
+                df["Allocation_Percentage"] = (df["Total_Amount_USD"] / total_sum) * 100.0
 
                 anomaly_flags = detect_anomalies(df)
                 anomaly_count = int(sum(anomaly_flags))
         except Exception:
-            # If the anomaly model is not trained yet, we just return 0
             anomaly_count = 0
 
-        # Forecast accuracy proxy: compare latest forecast vs realized revenue
+        # Forecast accuracy: evaluate only on past forecast windows
         forecast_accuracy = None
+        forecast_accuracy_provisional = None
+        forecast_accuracy_basis = None
         try:
-            latest_forecasts = RevenueForecast.objects.order_by("-forecast_date")[:6]
-            if latest_forecasts and last_30_revenue > 0:
-                avg_forecast = (
-                    sum(f.predicted_revenue for f in latest_forecasts)
-                    / len(latest_forecasts)
+            past_forecasts = (
+                RevenueForecast.objects.filter(forecast_date__lte=today)
+                .order_by("-forecast_date")[:6]
+            )
+            errors = []
+            for f in past_forecasts:
+                window_start = f.forecast_date - timedelta(days=30)
+                actual_qs = SalesTransaction.objects.filter(
+                    date__gt=window_start, date__lte=f.forecast_date
                 )
-                error_ratio = abs(avg_forecast - last_30_revenue) / max(
-                    last_30_revenue, 1.0
-                )
-                forecast_accuracy = max(0.0, min(1.0, 1.0 - error_ratio)) * 100.0
+                if mine_id:
+                    actual_qs = actual_qs.filter(mine_id=mine_id)
+                actual_total = actual_qs.aggregate(total=Sum("total_amount"))["total"] or 0
+                if actual_total > 0:
+                    errors.append(abs(f.predicted_revenue - actual_total) / actual_total)
+            if errors:
+                mape = sum(errors) / len(errors)
+                forecast_accuracy = max(0.0, min(1.0, 1.0 - mape)) * 100.0
+                forecast_accuracy_basis = "mature"
+            else:
+                # Provisional accuracy: compare latest forecasts to last 30 days revenue
+                latest_forecasts = RevenueForecast.objects.order_by("-forecast_date")[:6]
+                if latest_forecasts and last_30_revenue > 0 and last_30_tx.count() >= 3:
+                    avg_forecast = (
+                        sum(f.predicted_revenue for f in latest_forecasts)
+                        / len(latest_forecasts)
+                    )
+                    error_ratio = abs(avg_forecast - last_30_revenue) / max(
+                        last_30_revenue, 1.0
+                    )
+                    if error_ratio <= 1.0:
+                        forecast_accuracy_provisional = max(0.0, min(1.0, 1.0 - error_ratio)) * 100.0
+                        forecast_accuracy_basis = "provisional"
         except Exception:
             forecast_accuracy = None
+            forecast_accuracy_provisional = None
+            forecast_accuracy_basis = None
 
         data = {
             "summary": {
@@ -161,6 +203,12 @@ class AnalyticsSummaryAPIView(APIView):
                 "stability_score": stability_score,
                 "anomaly_count": anomaly_count,
                 "forecast_accuracy": forecast_accuracy,
+                "forecast_accuracy_provisional": forecast_accuracy_provisional,
+                "forecast_accuracy_basis": forecast_accuracy_basis,
+                "model_status": {
+                    "forecast": get_model_info("forecast"),
+                    "anomaly": get_model_info("anomaly"),
+                },
             },
         }
         return Response(data, status=status.HTTP_200_OK)
@@ -192,7 +240,15 @@ class AnomalyInsightsAPIView(APIView):
             tx_qs = tx_qs.filter(mine_id=mine_id)
 
         if not tx_qs.exists():
-            return Response({"anomalies": []}, status=status.HTTP_200_OK)
+            model_info = get_model_info("anomaly")
+            return Response(
+                {
+                    "anomalies": [],
+                    "model_ready": bool(model_info.get("ready")),
+                    "model_version": model_info.get("model_version"),
+                },
+                status=status.HTTP_200_OK,
+            )
 
         df = pd.DataFrame(
             list(
@@ -224,7 +280,15 @@ class AnomalyInsightsAPIView(APIView):
         try:
             flags = detect_anomalies(df_features)
         except Exception:
-            return Response({"anomalies": [], "model_ready": False}, status=status.HTTP_200_OK)
+            model_info = get_model_info("anomaly")
+            return Response(
+                {
+                    "anomalies": [],
+                    "model_ready": False,
+                    "model_version": model_info.get("model_version"),
+                },
+                status=status.HTTP_200_OK,
+            )
 
         df["is_anomaly"] = flags
         anomalies_df = df[df["is_anomaly"] == 1].copy()
@@ -243,12 +307,19 @@ class AnomalyInsightsAPIView(APIView):
                 }
             )
 
-        return Response({"anomalies": anomalies}, status=status.HTTP_200_OK)
+        return Response(
+            {
+                "anomalies": anomalies,
+                "model_ready": True,
+                "model_version": get_model_info("anomaly").get("model_version"),
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class RecommendationAPIView(APIView):
     """
-    High‑level AI recommendations derived from forecast, anomaly rate and revenue trends.
+    High-level AI recommendations derived from forecast, anomaly rate and revenue trends.
     """
 
     permission_classes = [IsAuthenticated]
@@ -270,15 +341,21 @@ class RecommendationAPIView(APIView):
                 {
                     "title": "Investigate declining revenue trend",
                     "impact": "high",
-                    "detail": "Revenue has decreased compared to the previous month. Review collection efficiency and potential leak points at under‑performing sites.",
+                    "detail": (
+                        "Revenue has decreased compared to the previous month. Review collection "
+                        "efficiency and potential leak points at under-performing sites."
+                    ),
                 }
             )
         else:
             recommendations.append(
                 {
-                    "title": "Maintain and scale high‑performing sites",
+                    "title": "Maintain and scale high-performing sites",
                     "impact": "medium",
-                    "detail": "Revenue is trending positively. Consider increasing capacity or optimizing logistics at consistently high‑performing mines.",
+                    "detail": (
+                        "Revenue is trending positively. Consider increasing capacity or optimizing "
+                        "logistics at consistently high-performing mines."
+                    ),
                 }
             )
 
@@ -287,7 +364,10 @@ class RecommendationAPIView(APIView):
                 {
                     "title": "Reduce revenue volatility",
                     "impact": "medium",
-                    "detail": "Revenue stability score is moderate. Standardize pricing and contract terms across sites to reduce unexpected swings.",
+                    "detail": (
+                        "Revenue stability score is moderate. Standardize pricing and contract "
+                        "terms across sites to reduce unexpected swings."
+                    ),
                 }
             )
 
@@ -296,7 +376,11 @@ class RecommendationAPIView(APIView):
                 {
                     "title": "Prioritize anomaly investigation",
                     "impact": "high",
-                    "detail": f"{anomaly_count} anomalous transactions were detected in the last 30 days. Prioritize audit for sites with repeated anomalies and enforce stricter approval workflows.",
+                    "detail": (
+                        f"{anomaly_count} anomalous transactions were detected in the last 30 days. "
+                        "Prioritize audit for sites with repeated anomalies and enforce stricter "
+                        "approval workflows."
+                    ),
                 }
             )
 
@@ -305,7 +389,10 @@ class RecommendationAPIView(APIView):
                 {
                     "title": "Retrain forecasting model",
                     "impact": "medium",
-                    "detail": "Forecast accuracy is below 75%. Retrain the model with the latest data and review feature quality (e.g., missing or delayed transactions).",
+                    "detail": (
+                        "Forecast accuracy is below 75%. Retrain the model with the latest data and "
+                        "review feature quality (e.g., missing or delayed transactions)."
+                    ),
                 }
             )
 
@@ -314,7 +401,10 @@ class RecommendationAPIView(APIView):
                 {
                     "title": "System operating within normal parameters",
                     "impact": "low",
-                    "detail": "No critical AI alerts at this time. Continue monitoring revenue, anomalies, and forecasts regularly.",
+                    "detail": (
+                        "No critical AI alerts at this time. Continue monitoring revenue, "
+                        "anomalies, and forecasts regularly."
+                    ),
                 }
             )
 
@@ -331,14 +421,79 @@ class TrainModelsAPIView(APIView):
     throttle_scope = "train_models"
 
     def post(self, request):
-        forecast_metrics = train_forecasting_model()
-        anomaly_status = train_anomaly_model()
+        try:
+            forecast_metrics = train_forecasting_model()
+            anomaly_status = train_anomaly_model()
+        except Exception as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         return Response(
             {
                 "message": "Models retrained successfully.",
                 "forecast_metrics": forecast_metrics,
                 "anomaly_status": anomaly_status,
+                "model_status": {
+                    "forecast": get_model_info("forecast"),
+                    "anomaly": get_model_info("anomaly"),
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class SyncModelsAPIView(APIView):
+    """
+    Export DB transactions to CSV and retrain models, then refresh forecasts.
+    Intended for real-time updates after production/sales changes.
+    """
+
+    permission_classes = [IsAuthenticated, IsAdmin]
+    throttle_scope = "train_models"
+
+    def post(self, request):
+        try:
+            # 1) Export DB -> CSV datasets
+            call_command("export_ml_csv")
+
+            # 2) Retrain models from CSV
+            forecast_metrics = train_forecasting_model()
+            anomaly_status = train_anomaly_model()
+
+            # 3) Regenerate forecasts (replace future forecasts)
+            predictions = forecast_next_steps(6)
+            today = date.today()
+            RevenueForecast.objects.filter(forecast_date__gte=today).delete()
+            model_info = get_model_info("forecast")
+            model_version = model_info.get("model_version") or FORECAST_MODEL_VERSION
+            created_forecasts = []
+            for i, value in enumerate(predictions):
+                forecast_date = today + timedelta(days=30 * (i + 1))
+                created_forecasts.append(
+                    RevenueForecast.objects.create(
+                        forecast_date=forecast_date,
+                        predicted_revenue=value,
+                        model_version=model_version,
+                    )
+                )
+        except Exception as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "message": "CSV exported, models retrained, forecasts regenerated.",
+                "forecast_metrics": forecast_metrics,
+                "anomaly_status": anomaly_status,
+                "model_status": {
+                    "forecast": get_model_info("forecast"),
+                    "anomaly": get_model_info("anomaly"),
+                },
+                "forecasts": RevenueForecastSerializer(created_forecasts, many=True).data,
             },
             status=status.HTTP_200_OK,
         )
