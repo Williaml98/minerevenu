@@ -3,10 +3,20 @@ import { apiSlice } from "./ApiSlice";
 const authApi = apiSlice.injectEndpoints({
     endpoints: (builder) => ({
         login: builder.mutation({
-            query: (data) => ({ url: "auth/login/", method: "POST", body: data }),
+            query: (data) => ({
+                url: "auth/login/",
+                method: "POST",
+                body: data,
+                headers: { "X-Skip-Auth": "true" },
+            }),
         }),
         register: builder.mutation({
-            query: (data) => ({ url: "auth/register/", method: "POST", body: data }),
+            query: (data) => ({
+                url: "auth/register/",
+                method: "POST",
+                body: data,
+                headers: { "X-Skip-Auth": "true" },
+            }),
         }),
         createUser: builder.mutation({
             query: (data) => ({
@@ -33,6 +43,7 @@ const authApi = apiSlice.injectEndpoints({
                 url: "auth/forgot-password/",
                 method: "POST",
                 body: data,
+                headers: { "X-Skip-Auth": "true" },
             }),
         }),
         getAllUsers: builder.query({

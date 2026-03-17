@@ -74,7 +74,11 @@ export default function SignUpPage() {
 
         // Add your registration logic here
         try {
-            await signUp({ ...formData });
+            await signUp({
+                username: formData.fullname.trim(),
+                email: formData.email.trim(),
+                password: formData.password,
+            });
             console.log("Sign up attempt:", formData);
         } catch (error) {
             console.error("Sign up error:", error);

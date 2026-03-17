@@ -6,6 +6,11 @@ export const apiSlice = createApi({
     baseQuery: fetchBaseQuery({
         baseUrl: `${process.env.NEXT_PUBLIC_API_URL}/api`,
         prepareHeaders: async (headers) => {
+            if (headers.get("X-Skip-Auth") === "true") {
+                headers.delete("X-Skip-Auth");
+                headers.delete("Authorization");
+                return headers;
+            }
             if (typeof window !== "undefined") {
                 const accessToken = localStorage.getItem("access");
                 if (accessToken) {

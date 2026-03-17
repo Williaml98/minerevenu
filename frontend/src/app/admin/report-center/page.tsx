@@ -1,5 +1,5 @@
 ﻿'use client';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
     FileText,
     Trash2, RefreshCw, FileSpreadsheet, File,
@@ -10,6 +10,7 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
 import { useGetAuditLogsQuery } from "@/lib/redux/slices/AuditLogSlice";
+import { useGetMyDetailsMutation } from "@/lib/redux/slices/AuthSlice";
 import {
     useGetMineCompaniesQuery,
     useGetProductionRecordsQuery,
@@ -54,6 +55,9 @@ export default function ReportCenter() {
     const { data: productionRecords = [], isLoading: productionLoading } = useGetProductionRecordsQuery({});
     const { data: salesTransactions = [], isLoading: salesLoading } = useGetSalesTransactionsQuery({});
     const { data: forecasts = [], isLoading: forecastLoading } = useGetForecastQuery({});
+    const [getMyDetails] = useGetMyDetailsMutation();
+    const [exportedBy, setExportedBy] = useState<string>("Unknown user");
+    const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
 
     // State Management
     const [reports, setReports] = useState<Report[]>([]);
@@ -66,6 +70,34 @@ export default function ReportCenter() {
     const [selectedSite, setSelectedSite] = useState<string>('all');
     const [isGenerating, setIsGenerating] = useState(false);
     const [exportFormat, setExportFormat] = useState<'pdf' | 'excel'>('pdf');
+
+    useEffect(() => {
+        const loadUser = async () => {
+            try {
+                const res = await getMyDetails({}).unwrap();
+                const name = res?.username || res?.email || "Unknown user";
+                setExportedBy(name);
+            } catch {
+                setExportedBy("Unknown user");
+            }
+        };
+        loadUser();
+    }, [getMyDetails]);
+
+    useEffect(() => {
+        const loadLogo = async () => {
+            try {
+                const res = await fetch("/logo.png");
+                const blob = await res.blob();
+                const reader = new FileReader();
+                reader.onload = () => setLogoDataUrl(String(reader.result));
+                reader.readAsDataURL(blob);
+            } catch {
+                setLogoDataUrl(null);
+            }
+        };
+        loadLogo();
+    }, []);
 
     const availabilityData = useMemo(() => {
         const fromDate = new Date(dateRange.from);
@@ -156,7 +188,7 @@ export default function ReportCenter() {
             type: selectedReportType,
             period: `${dateRange.from} to ${dateRange.to}`,
             generatedOn: new Date().toISOString(),
-            createdBy: 'Current User',
+            createdBy: exportedBy,
             dataType: selectedDataType
         };
 
@@ -168,14 +200,22 @@ export default function ReportCenter() {
     const exportToPDF = (report: Report) => {
         const doc = new jsPDF();
 
-        // Title
-        doc.setFontSize(20);
-        doc.text(report.name, 14, 22);
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+
+        // Header with logo
+        if (logoDataUrl) {
+            doc.addImage(logoDataUrl, "PNG", 14, 10, 26, 26);
+        }
+        doc.setFontSize(18);
+        doc.text(report.name, 46, 22);
+        doc.setDrawColor(200);
+        doc.line(14, 38, pageWidth - 14, 38);
 
         // Metadata
         doc.setFontSize(10);
-        doc.text(`Period: ${report.period}`, 14, 32);
-        doc.text(`Generated: ${new Date(report.generatedOn).toLocaleString()}`, 14, 38);
+        doc.text(`Period: ${report.period}`, 14, 46);
+        doc.text(`Generated: ${new Date(report.generatedOn).toLocaleString()}`, 14, 52);
 
         let data: DataRecord[] = [];
         let columns: ReportColumn[] = [];
@@ -247,7 +287,7 @@ export default function ReportCenter() {
 
         // Add table
         autoTable(doc, {
-            startY: 45,
+            startY: 60,
             head: [columns.map(col => col.header)],
             body: data.map(item => columns.map(col => {
                 const value = item[col.dataKey];
@@ -269,6 +309,12 @@ export default function ReportCenter() {
             headStyles: { fillColor: [41, 128, 185], textColor: 255 },
             alternateRowStyles: { fillColor: [245, 245, 245] }
         });
+
+        // Footer
+        doc.setFontSize(9);
+        doc.setTextColor(120);
+        doc.text(`Exported by: ${report.createdBy}`, 14, pageHeight - 12);
+        doc.text(`Page 1`, pageWidth - 30, pageHeight - 12);
 
         // Save PDF
         doc.save(`${report.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`);
