@@ -18,6 +18,7 @@ export interface ProductionRecord {
     quantity_produced: number;
     unit_price: number;
     total_revenue: number;
+    status?: TransactionStatus;
     mine: number;
 }
 
@@ -96,8 +97,27 @@ export interface CreateSalesTransactionPayload {
     mine: number;
     date: string;
     quantity: number;
-    unit_price: number;
     payment_method: string;
+}
+
+export interface UpdateMineCompanyPayload extends Partial<CreateMineCompanyPayload> {
+    id: number;
+}
+
+export interface UpdateProductionRecordPayload {
+    id: number;
+    mine?: number;
+    date?: string;
+    quantity_produced?: number;
+    unit_price?: number;
+}
+
+export interface UpdateSalesTransactionPayload {
+    id: number;
+    mine?: number;
+    date?: string;
+    quantity?: number;
+    payment_method?: string;
 }
 
 const miningApi = apiSlice.injectEndpoints({
@@ -107,6 +127,21 @@ const miningApi = apiSlice.injectEndpoints({
                 url: "mining/mines/",
                 method: "POST",
                 body: data,
+            }),
+            invalidatesTags: ["Mines"],
+        }),
+        updateMineCompany: builder.mutation<MineCompany, UpdateMineCompanyPayload>({
+            query: ({ id, ...data }) => ({
+                url: `mining/mines/${id}/`,
+                method: "PATCH",
+                body: data,
+            }),
+            invalidatesTags: ["Mines"],
+        }),
+        deleteMineCompany: builder.mutation<{ detail?: string }, number>({
+            query: (id) => ({
+                url: `mining/mines/${id}/`,
+                method: "DELETE",
             }),
             invalidatesTags: ["Mines"],
         }),
@@ -121,6 +156,35 @@ const miningApi = apiSlice.injectEndpoints({
             }),
             invalidatesTags: ["Production"],
         }),
+        updateProductionRecord: builder.mutation<
+            ProductionRecord,
+            UpdateProductionRecordPayload
+        >({
+            query: ({ id, ...data }) => ({
+                url: `mining/production/${id}/`,
+                method: "PATCH",
+                body: data,
+            }),
+            invalidatesTags: ["Production"],
+        }),
+        deleteProductionRecord: builder.mutation<{ detail?: string }, number>({
+            query: (id) => ({
+                url: `mining/production/${id}/`,
+                method: "DELETE",
+            }),
+            invalidatesTags: ["Production"],
+        }),
+        updateProductionStatus: builder.mutation<
+            ProductionRecord,
+            { id: number; status: TransactionStatus }
+        >({
+            query: ({ id, status }) => ({
+                url: `mining/production/${id}/status/`,
+                method: "PATCH",
+                body: { status },
+            }),
+            invalidatesTags: ["Production"],
+        }),
         createSalesTransaction: builder.mutation<
             SalesTransaction,
             CreateSalesTransactionPayload
@@ -129,6 +193,24 @@ const miningApi = apiSlice.injectEndpoints({
                 url: "revenue/transactions/",
                 method: "POST",
                 body: data,
+            }),
+            invalidatesTags: ["Sales", "RevenueSummary", "Analytics"],
+        }),
+        updateSalesTransaction: builder.mutation<
+            SalesTransaction,
+            UpdateSalesTransactionPayload
+        >({
+            query: ({ id, ...data }) => ({
+                url: `revenue/transactions/${id}/`,
+                method: "PATCH",
+                body: data,
+            }),
+            invalidatesTags: ["Sales", "RevenueSummary", "Analytics"],
+        }),
+        deleteSalesTransaction: builder.mutation<{ detail?: string }, number>({
+            query: (id) => ({
+                url: `revenue/transactions/${id}/`,
+                method: "DELETE",
             }),
             invalidatesTags: ["Sales", "RevenueSummary", "Analytics"],
         }),
@@ -197,8 +279,15 @@ const miningApi = apiSlice.injectEndpoints({
 
 export const {
     useCreateMineCompanyMutation,
+    useUpdateMineCompanyMutation,
+    useDeleteMineCompanyMutation,
     useCreateProductionRecordMutation,
+    useUpdateProductionRecordMutation,
+    useDeleteProductionRecordMutation,
+    useUpdateProductionStatusMutation,
     useCreateSalesTransactionMutation,
+    useUpdateSalesTransactionMutation,
+    useDeleteSalesTransactionMutation,
     useUpdateSalesTransactionStatusMutation,
     useGenerateForecastMutation,
     useGetForecastQuery,

@@ -1,9 +1,11 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Edit, Trash2, X, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, X, ChevronDown, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { useCreateUserMutation, useGetAllUsersQuery } from '@/lib/redux/slices/AuthSlice';
 import { useUpdateUserMutation, useDeleteUserMutation, useToggleUserActiveMutation } from '@/lib/redux/slices/AuthSlice';
-import { toast } from 'react-toastify';
+import { toast } from "sonner";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const roles = ["All Roles", "Admin", "Officer", "Stakeholder"];
 
@@ -271,6 +273,41 @@ const UserManagementDashboard = () => {
         }
     };
 
+    const handleExportPdf = () => {
+        const doc = new jsPDF();
+        doc.setFontSize(16);
+        doc.text("User Management Report", 14, 18);
+        doc.setFontSize(10);
+        doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 26);
+
+        autoTable(doc, {
+            startY: 32,
+            head: [[
+                "Name",
+                "Email",
+                "Role",
+                "Employee ID",
+                "Telephone",
+                "Location",
+                "Status",
+            ]],
+            body: filteredUsers.map((user) => [
+                user.username || "",
+                user.email || "",
+                user.role || "",
+                user.employee_id || "-",
+                user.telephone || "-",
+                user.location || "-",
+                user.status || "-",
+            ]),
+            styles: { fontSize: 8 },
+            headStyles: { fillColor: [37, 99, 235], textColor: 255 },
+            alternateRowStyles: { fillColor: [245, 245, 245] },
+        });
+
+        doc.save(`user-management-${new Date().toISOString().split("T")[0]}.pdf`);
+    };
+
     const handlePageChange = (page: number) => {
         if (page >= 1 && page <= totalPages) {
             setCurrentPage(page);
@@ -363,6 +400,13 @@ const UserManagementDashboard = () => {
                             <Plus className="w-4 h-4" />
                             Add New User
                         </button>
+                        <button
+                            onClick={handleExportPdf}
+                            className="bg-white text-indigo-900 px-4 py-2 rounded-lg border border-indigo-200 flex items-center gap-2 hover:bg-indigo-50 transition-colors whitespace-nowrap"
+                        >
+                            <Download className="w-4 h-4" />
+                            Export PDF
+                        </button>
                     </div>
                 </div>
 
@@ -403,7 +447,7 @@ const UserManagementDashboard = () => {
 
             {/* Table Container */}
             <div className="px-4 pb-6">
-                <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
                     {/* Table Header */}
                     <div className="bg-gray-100 px-6 py-4">
                         <div className="grid grid-cols-15 gap-4 text-sm font-semibold text-gray-700">

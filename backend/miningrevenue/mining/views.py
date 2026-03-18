@@ -1,5 +1,6 @@
-from rest_framework import permissions
-from rest_framework import viewsets
+from rest_framework import permissions, status, viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
 from .models import Mine, ProductionRecord
 from .serializers import MineSerializer, ProductionRecordSerializer
 
@@ -23,3 +24,43 @@ class ProductionRecordViewSet(viewsets.ModelViewSet):
     queryset = ProductionRecord.objects.all()
     serializer_class = ProductionRecordSerializer
     permission_classes = [IsAdminOrOfficerOrReadOnly]
+
+    def perform_create(self, serializer):
+        serializer.save(status=ProductionRecord.STATUS_PENDING)
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        if self.request.user.role == "Officer":
+            if instance.status != ProductionRecord.STATUS_PENDING:
+                instance.status = ProductionRecord.STATUS_PENDING
+                instance.save(update_fields=["status"])
+
+    @action(detail=True, methods=["patch"], url_path="status")
+    def update_status(self, request, pk=None):
+        if request.user.role != "Admin":
+            return Response(
+                {"detail": "Only admins can update production status."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        production = self.get_object()
+        new_status = request.data.get("status")
+
+        allowed_statuses = {
+            ProductionRecord.STATUS_PENDING,
+            ProductionRecord.STATUS_APPROVED,
+            ProductionRecord.STATUS_REJECTED,
+        }
+
+        if new_status not in allowed_statuses:
+            return Response(
+                {
+                    "detail": "Invalid status. Use one of: Pending, Approved, Rejected."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        production.status = new_status
+        production.save(update_fields=["status"])
+        serializer = self.get_serializer(production)
+        return Response(serializer.data, status=status.HTTP_200_OK)

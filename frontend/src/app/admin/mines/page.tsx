@@ -27,7 +27,7 @@ const defaultForm: MineFormState = {
     status: "Active",
 };
 
-export default function OfficerMinesPage() {
+export default function AdminMinesPage() {
     const { data: mines = [], isLoading, isError, refetch } = useGetMineCompaniesQuery({});
     const [createMine, { isLoading: isCreating }] = useCreateMineCompanyMutation();
     const [updateMine, { isLoading: isUpdating }] = useUpdateMineCompanyMutation();
@@ -64,6 +64,7 @@ export default function OfficerMinesPage() {
             toast.error("Name, location, and mineral type are required.");
             return;
         }
+
         try {
             if (editingMine) {
                 await updateMine({
@@ -112,7 +113,7 @@ export default function OfficerMinesPage() {
             <header className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900">Mines & Companies</h1>
-                    <p className="text-sm text-slate-500">Registry of licensed mining sites under your supervision.</p>
+                    <p className="text-sm text-slate-500">Manage the official registry of mining sites.</p>
                 </div>
                 <div className="flex gap-2 items-center">
                     <button
@@ -217,7 +218,7 @@ export default function OfficerMinesPage() {
                                 <h3 className="text-xl font-bold text-slate-900">
                                     {editingMine ? "Edit Mine / Company" : "Add Mine / Company"}
                                 </h3>
-                                <p className="text-sm text-slate-500">Create or update mine registry details.</p>
+                                <p className="text-sm text-slate-500">Maintain accurate mine registry details.</p>
                             </div>
                             <button
                                 onClick={() => setShowModal(false)}

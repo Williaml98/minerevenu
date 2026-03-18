@@ -2,23 +2,30 @@
 
 import React, { useMemo } from "react";
 import { Download } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
     useGetMineCompaniesQuery,
     useGetSalesTransactionsQuery,
 } from "@/lib/redux/slices/MiningSlice";
 
-function downloadCsv(filename: string, rows: string[][]) {
-    const csv = rows
-        .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
-        .join("\n");
+function downloadPdf(filename: string, headers: string[], rows: string[][]) {
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text("Officer Revenue Report", 14, 18);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 26);
 
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(url);
+    autoTable(doc, {
+        startY: 32,
+        head: [headers],
+        body: rows,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [37, 99, 235], textColor: 255 },
+        alternateRowStyles: { fillColor: [245, 245, 245] },
+    });
+
+    doc.save(filename);
 }
 
 export default function OfficerReportPage() {
@@ -28,14 +35,14 @@ export default function OfficerReportPage() {
     const rows = useMemo(() => {
         const mineMap = new Map(mines.map((mine) => [mine.id, mine.name]));
         return transactions.map((tx) => [
-            tx.id,
-            tx.date,
+            String(tx.id),
+            String(tx.date),
             mineMap.get(tx.mine) || `Mine #${tx.mine}`,
-            tx.quantity,
-            tx.unit_price,
-            tx.total_amount,
-            tx.payment_method,
-            tx.status,
+            String(tx.quantity),
+            String(tx.unit_price),
+            String(tx.total_amount),
+            String(tx.payment_method),
+            String(tx.status),
             tx.is_flagged ? "Yes" : "No",
         ]);
     }, [transactions, mines]);
@@ -52,25 +59,22 @@ export default function OfficerReportPage() {
                 <button
                     className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 flex items-center gap-2"
                     onClick={() =>
-                        downloadCsv(`officer-revenue-${new Date().toISOString().split("T")[0]}.csv`, [
-                            [
-                                "ID",
-                                "Date",
-                                "Mine",
-                                "Quantity",
-                                "Unit Price",
-                                "Total Amount",
-                                "Payment Method",
-                                "Status",
-                                "Flagged",
-                            ],
-                            ...rows.map((r) => r.map((v) => String(v))),
-                        ])
+                        downloadPdf(`officer-revenue-${new Date().toISOString().split("T")[0]}.pdf`, [
+                            "ID",
+                            "Date",
+                            "Mine",
+                            "Quantity",
+                            "Unit Price",
+                            "Total Amount",
+                            "Payment Method",
+                            "Status",
+                            "Flagged",
+                        ], rows)
                     }
                     disabled={rows.length === 0}
                 >
                     <Download size={16} />
-                    Export CSV
+                    Export PDF
                 </button>
             </div>
 

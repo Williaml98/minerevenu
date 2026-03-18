@@ -35,6 +35,11 @@ const items = [
         icon: BarChart3,
     },
     {
+        title: "Mines & Companies",
+        url: "/admin/mines",
+        icon: Shield,
+    },
+    {
         title: " AI Analytics & Insights",
         url: "/admin/ai-analytics",
         icon: BrainCircuit,

@@ -34,8 +34,45 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
             .order_by("-date", "-created_at")
         )
 
+    def _resolve_production_pricing(self, mine_id, date_value, quantity_value, instance=None):
+        production_qs = ProductionRecord.objects.filter(
+            mine_id=mine_id, date__lte=date_value
+        )
+        if not production_qs.exists():
+            return None, Response(
+                {
+                    "detail": "Production record required before sales. Create production first."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        total_produced = (
+            production_qs.aggregate(total=Sum("quantity_produced"))["total"] or 0
+        )
+        sold_qs = SalesTransaction.objects.filter(mine_id=mine_id, date__lte=date_value)
+        if instance is not None:
+            sold_qs = sold_qs.exclude(id=instance.id)
+        total_sold = sold_qs.aggregate(total=Sum("quantity"))["total"] or 0
+
+        if total_sold + quantity_value > total_produced:
+            return None, Response(
+                {
+                    "detail": "Sales quantity exceeds total produced quantity for this mine."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        latest_production = production_qs.order_by("-date", "-id").first()
+        return latest_production.unit_price, None
+
     def perform_create(self, serializer):
-        instance = serializer.save(created_by=self.request.user)
+        save_kwargs = {
+            "created_by": self.request.user,
+            "status": SalesTransaction.STATUS_PENDING,
+        }
+        if hasattr(self, "_forced_unit_price") and self._forced_unit_price is not None:
+            save_kwargs["unit_price"] = self._forced_unit_price
+        instance = serializer.save(**save_kwargs)
 
         # Prepare data for anomaly detection
         try:
@@ -95,38 +132,72 @@ class SalesTransactionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        production_qs = ProductionRecord.objects.filter(
-            mine_id=mine_id, date__lte=date_value
+        unit_price, error_response = self._resolve_production_pricing(
+            mine_id, date_value, quantity_value
         )
-        if not production_qs.exists():
+        if error_response:
+            return error_response
+
+        payload = request.data.copy()
+
+        serializer = self.get_serializer(data=payload)
+        serializer.is_valid(raise_exception=True)
+        self._forced_unit_price = unit_price
+        self.perform_create(serializer)
+        self._forced_unit_price = None
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop("partial", False)
+        instance = self.get_object()
+
+        mine_id = request.data.get("mine", instance.mine_id)
+        date_value = request.data.get("date", instance.date)
+        quantity = request.data.get("quantity", instance.quantity)
+
+        try:
+            quantity_value = float(quantity)
+        except (TypeError, ValueError):
             return Response(
-                {
-                    "detail": "Production record required before sales. Create production first."
-                },
+                {"detail": "quantity must be a number."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        total_produced = (
-            production_qs.aggregate(total=Sum("quantity_produced"))["total"] or 0
+        unit_price, error_response = self._resolve_production_pricing(
+            mine_id, date_value, quantity_value, instance=instance
         )
-        total_sold = (
-            SalesTransaction.objects.filter(mine_id=mine_id, date__lte=date_value)
-            .aggregate(total=Sum("quantity"))["total"]
-            or 0
-        )
+        if error_response:
+            return error_response
 
-        if total_sold + quantity_value > total_produced:
-            return Response(
-                {
-                    "detail": "Sales quantity exceeds total produced quantity for this mine."
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        payload = request.data.copy()
 
-        return super().create(request, *args, **kwargs)
+        serializer = self.get_serializer(instance, data=payload, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self._forced_unit_price = unit_price
+        self.perform_update(serializer)
+        self._forced_unit_price = None
+        return Response(serializer.data)
+
+    def perform_update(self, serializer):
+        save_kwargs = {}
+        if hasattr(self, "_forced_unit_price") and self._forced_unit_price is not None:
+            save_kwargs["unit_price"] = self._forced_unit_price
+        instance = serializer.save(**save_kwargs)
+        if self.request.user.role == "Officer":
+            if instance.status != SalesTransaction.STATUS_PENDING:
+                instance.status = SalesTransaction.STATUS_PENDING
+                instance.validated_by = None
+                instance.validated_at = None
+                instance.save(update_fields=["status", "validated_by", "validated_at"])
 
     @action(detail=True, methods=["patch"], url_path="status")
     def update_status(self, request, pk=None):
+        if request.user.role != "Admin":
+            return Response(
+                {"detail": "Only admins can update revenue status."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         transaction = self.get_object()
         new_status = request.data.get("status")
 

@@ -14,11 +14,23 @@ class Mine(models.Model):
 
 
 class ProductionRecord(models.Model):
+    STATUS_PENDING = "Pending"
+    STATUS_APPROVED = "Approved"
+    STATUS_REJECTED = "Rejected"
+    STATUS_CHOICES = (
+        (STATUS_PENDING, "Pending"),
+        (STATUS_APPROVED, "Approved"),
+        (STATUS_REJECTED, "Rejected"),
+    )
+
     mine = models.ForeignKey(Mine, on_delete=models.CASCADE, related_name="productions")
     date = models.DateField()
     quantity_produced = models.FloatField()
     unit_price = models.FloatField()
     total_revenue = models.FloatField(blank=True, null=True)
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING
+    )
 
     def save(self, *args, **kwargs):
         self.total_revenue = self.quantity_produced * self.unit_price

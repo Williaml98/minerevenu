@@ -6,13 +6,19 @@ import {
     useGetProductionRecordsQuery,
     useGetSalesTransactionsQuery,
     useGetMineCompaniesQuery,
+    useUpdateProductionRecordMutation,
+    useDeleteProductionRecordMutation,
+    useUpdateProductionStatusMutation,
+    useUpdateSalesTransactionMutation,
+    useDeleteSalesTransactionMutation,
     useUpdateSalesTransactionStatusMutation
 } from "@/lib/redux/slices/MiningSlice";
 import { useGetAnalyticsAnomaliesQuery, useSyncModelsMutation } from "@/lib/redux/slices/analyticsApi";
 import {
     Download, Plus, Eye, Check, X,
-    AlertTriangle, FileText, ChevronRight
+    AlertTriangle, FileText, ChevronRight, Edit, Trash2
 } from 'lucide-react';
+import { toast } from "sonner";
 
 // Types
 interface RevenueEntry {
@@ -45,7 +51,6 @@ interface SalesFormData {
     mineName: string;
     date: string;
     quantity: number;
-    unit_price: number;
     payment_method: string;
 }
 
@@ -56,6 +61,7 @@ interface ProductionRecord {
     quantity_produced: number;
     unit_price: number;
     total_revenue: number;
+    status?: 'Pending' | 'Approved' | 'Rejected';
     mine: number;
 }
 
@@ -91,7 +97,12 @@ export default function RevenueManagement() {
     const { data: anomaliesData, isLoading: loadingAnomalies } = useGetAnalyticsAnomaliesQuery({ limit: 3 });
 
     const [createProductionRecord, { isLoading: creatingProduction }] = useCreateProductionRecordMutation();
+    const [updateProductionRecord, { isLoading: updatingProduction }] = useUpdateProductionRecordMutation();
+    const [deleteProductionRecord, { isLoading: deletingProduction }] = useDeleteProductionRecordMutation();
+    const [updateProductionStatus, { isLoading: updatingProductionStatus }] = useUpdateProductionStatusMutation();
     const [createSalesTransaction, { isLoading: creatingSales }] = useCreateSalesTransactionMutation();
+    const [updateSalesTransaction, { isLoading: updatingSales }] = useUpdateSalesTransactionMutation();
+    const [deleteSalesTransaction, { isLoading: deletingSales }] = useDeleteSalesTransactionMutation();
     const [updateSalesTransactionStatus, { isLoading: updatingStatus }] = useUpdateSalesTransactionStatusMutation();
     const [syncModels, { isLoading: syncingModels }] = useSyncModelsMutation();
 
@@ -106,6 +117,9 @@ export default function RevenueManagement() {
     // Modal states
     const [showAddProductionModal, setShowAddProductionModal] = useState(false);
     const [showAddSalesModal, setShowAddSalesModal] = useState(false);
+    const [showEditProductionModal, setShowEditProductionModal] = useState(false);
+    const [showEditSalesModal, setShowEditSalesModal] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [showViewModal, setShowViewModal] = useState(false);
     const [showApproveModal, setShowApproveModal] = useState(false);
     const [showRejectModal, setShowRejectModal] = useState(false);
@@ -129,7 +143,22 @@ export default function RevenueManagement() {
         mineName: '',
         date: todayISO,
         quantity: 0,
-        unit_price: 0,
+        payment_method: 'Bank Transfer'
+    });
+
+    const [editProductionForm, setEditProductionForm] = useState<ProductionFormData>({
+        mineId: null,
+        mineName: '',
+        date: todayISO,
+        quantity_produced: 0,
+        unit_price: 0
+    });
+
+    const [editSalesForm, setEditSalesForm] = useState<SalesFormData>({
+        mineId: null,
+        mineName: '',
+        date: todayISO,
+        quantity: 0,
         payment_method: 'Bank Transfer'
     });
 
@@ -161,12 +190,12 @@ export default function RevenueManagement() {
                 revenueSource: 'Production',
                 amount: record.total_revenue || (record.quantity_produced * record.unit_price),
                 dateSubmitted: record.date,
-                    status: 'Pending',
-                    submittedBy: 'System',
-                    type: 'production',
-                    recordId: record.id
-                });
+                status: record.status || 'Pending',
+                submittedBy: 'System',
+                type: 'production',
+                recordId: record.id
             });
+        });
 
         salesTransactions.forEach((sale: SalesTransaction) => {
             const mine = mineCompanies.find((m: MineCompany) => m.id === sale.mine);
@@ -231,7 +260,7 @@ export default function RevenueManagement() {
         }).format(amount);
     };
 
-    const getAvailableQuantity = (mineId: number | null, dateValue: string) => {
+    const getAvailableQuantity = (mineId: number | null, dateValue: string, excludeSalesId?: number) => {
         if (!mineId || !dateValue) return null;
         const cutoff = new Date(dateValue);
         const produced = productionRecords
@@ -239,17 +268,27 @@ export default function RevenueManagement() {
             .reduce((sum, record) => sum + (record.quantity_produced || 0), 0);
         const sold = salesTransactions
             .filter((sale) => sale.mine === mineId && new Date(sale.date) <= cutoff)
+            .filter((sale) => (excludeSalesId ? sale.id !== excludeSalesId : true))
             .reduce((sum, sale) => sum + (sale.quantity || 0), 0);
         return Math.max(0, produced - sold);
     };
 
+    const getUnitPriceForSale = (mineId: number | null, dateValue: string) => {
+        if (!mineId || !dateValue) return null;
+        const cutoff = new Date(dateValue);
+        const matching = productionRecords
+            .filter((record) => record.mine === mineId && new Date(record.date) <= cutoff)
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        return matching.length > 0 ? matching[0].unit_price : null;
+    };
+
     const handleCreateProduction = async () => {
         if (!productionForm.mineId || !productionForm.date || productionForm.quantity_produced <= 0 || productionForm.unit_price <= 0) {
-            alert('Please fill all fields correctly');
+            toast.error('Please fill all fields correctly');
             return;
         }
         if (productionForm.date > todayISO) {
-            alert('Production date cannot be in the future');
+            toast.error('Production date cannot be in the future');
             return;
         }
 
@@ -270,7 +309,7 @@ export default function RevenueManagement() {
                 unit_price: 0
             });
             setShowAddProductionModal(false);
-            alert('Production record created successfully!');
+            toast.success('Production record created successfully!');
             try {
                 await syncModels().unwrap();
                 setSyncMessage({ type: 'success', text: 'AI models synced and forecasts refreshed.' });
@@ -281,22 +320,27 @@ export default function RevenueManagement() {
         } catch (error) {
             console.error('Failed to create production record:', error);
             const err = error as { data?: { detail?: string } };
-            alert(err?.data?.detail || 'Failed to create production record');
+            toast.error(err?.data?.detail || 'Failed to create production record');
         }
     };
 
     const handleCreateSales = async () => {
-        if (!salesForm.mineId || !salesForm.date || salesForm.quantity <= 0 || salesForm.unit_price <= 0 || !salesForm.payment_method) {
-            alert('Please fill all fields correctly');
+        if (!salesForm.mineId || !salesForm.date || salesForm.quantity <= 0 || !salesForm.payment_method) {
+            toast.error('Please fill all fields correctly');
             return;
         }
         if (salesForm.date > todayISO) {
-            alert('Sales date cannot be in the future');
+            toast.error('Sales date cannot be in the future');
+            return;
+        }
+        const unitPrice = getUnitPriceForSale(salesForm.mineId, salesForm.date);
+        if (!unitPrice) {
+            toast.error('Add a production record first to set the unit price.');
             return;
         }
         const availableQty = getAvailableQuantity(salesForm.mineId, salesForm.date);
         if (availableQty !== null && salesForm.quantity > availableQty) {
-            alert('Sales quantity exceeds available produced quantity for this mine and date.');
+            toast.error('Sales quantity exceeds available produced quantity for this mine and date.');
             return;
         }
 
@@ -305,7 +349,6 @@ export default function RevenueManagement() {
                 mine: salesForm.mineId,
                 date: salesForm.date,
                 quantity: salesForm.quantity,
-                unit_price: salesForm.unit_price,
                 payment_method: salesForm.payment_method
             }).unwrap();
 
@@ -315,11 +358,10 @@ export default function RevenueManagement() {
                 mineName: '',
                 date: todayISO,
                 quantity: 0,
-                unit_price: 0,
                 payment_method: 'Bank Transfer'
             });
             setShowAddSalesModal(false);
-            alert('Sales transaction created successfully!');
+            toast.success('Sales transaction created successfully!');
             try {
                 await syncModels().unwrap();
                 setSyncMessage({ type: 'success', text: 'AI models synced and forecasts refreshed.' });
@@ -330,7 +372,7 @@ export default function RevenueManagement() {
         } catch (error) {
             console.error('Failed to create sales transaction:', error);
             const err = error as { data?: { detail?: string } };
-            alert(err?.data?.detail || 'Failed to create sales transaction');
+            toast.error(err?.data?.detail || 'Failed to create sales transaction');
         }
     };
 
@@ -346,30 +388,164 @@ export default function RevenueManagement() {
         setShowRejectModal(true);
     };
 
+    const handleEdit = (entry: RevenueEntry) => {
+        setSelectedEntry(entry);
+        if (entry.type === 'production') {
+            const record = productionRecords.find((r) => r.id === entry.recordId);
+            setEditProductionForm({
+                mineId: record?.mine ?? null,
+                mineName: entry.siteName,
+                date: record?.date || todayISO,
+                quantity_produced: record?.quantity_produced || 0,
+                unit_price: record?.unit_price || 0
+            });
+            setShowEditProductionModal(true);
+        } else {
+            const record = salesTransactions.find((r) => r.id === entry.recordId);
+            setEditSalesForm({
+                mineId: record?.mine ?? null,
+                mineName: entry.siteName,
+                date: record?.date || todayISO,
+                quantity: record?.quantity || 0,
+                payment_method: record?.payment_method || 'Bank Transfer'
+            });
+            setShowEditSalesModal(true);
+        }
+    };
+
+    const handleDelete = (entry: RevenueEntry) => {
+        setSelectedEntry(entry);
+        setShowDeleteModal(true);
+    };
+
     const confirmAction = async () => {
         if (selectedEntry) {
-            if (selectedEntry.type !== 'sales') {
-                alert('Only sales entries can be approved or rejected.');
-                setShowApproveModal(false);
-                setShowRejectModal(false);
-                setSelectedEntry(null);
-                return;
-            }
-
             const newStatus = actionType === 'approve' ? 'Approved' : 'Rejected';
             try {
-                await updateSalesTransactionStatus({
-                    id: selectedEntry.recordId,
-                    status: newStatus
-                }).unwrap();
-                await refetchSales();
+                if (selectedEntry.type === 'production') {
+                    await updateProductionStatus({
+                        id: selectedEntry.recordId,
+                        status: newStatus
+                    }).unwrap();
+                    toast.success(`Production marked as ${newStatus}.`);
+                } else {
+                    await updateSalesTransactionStatus({
+                        id: selectedEntry.recordId,
+                        status: newStatus
+                    }).unwrap();
+                    await refetchSales();
+                    toast.success(`Revenue marked as ${newStatus}.`);
+                }
             } catch (error) {
                 console.error('Failed to update status:', error);
-                alert('Failed to update status. Please try again.');
+                toast.error('Failed to update status. Please try again.');
             }
             setShowApproveModal(false);
             setShowRejectModal(false);
             setSelectedEntry(null);
+        }
+    };
+
+    const handleUpdateProduction = async () => {
+        if (!selectedEntry || selectedEntry.type !== 'production') return;
+        if (!editProductionForm.mineId || !editProductionForm.date || editProductionForm.quantity_produced <= 0 || editProductionForm.unit_price <= 0) {
+            toast.error('Please fill all fields correctly');
+            return;
+        }
+        if (editProductionForm.date > todayISO) {
+            toast.error('Production date cannot be in the future');
+            return;
+        }
+        try {
+            await updateProductionRecord({
+                id: selectedEntry.recordId,
+                mine: editProductionForm.mineId,
+                date: editProductionForm.date,
+                quantity_produced: editProductionForm.quantity_produced,
+                unit_price: editProductionForm.unit_price
+            }).unwrap();
+            setShowEditProductionModal(false);
+            setSelectedEntry(null);
+            toast.success('Production record updated.');
+            try {
+                await syncModels().unwrap();
+                setSyncMessage({ type: 'success', text: 'AI models synced and forecasts refreshed.' });
+            } catch (err) {
+                const apiErr = err as { data?: { detail?: string } };
+                setSyncMessage({ type: 'error', text: apiErr?.data?.detail || 'AI sync failed. Try again later.' });
+            }
+        } catch (error) {
+            console.error('Failed to update production record:', error);
+            toast.error('Failed to update production record');
+        }
+    };
+
+    const handleUpdateSales = async () => {
+        if (!selectedEntry || selectedEntry.type !== 'sales') return;
+        if (!editSalesForm.mineId || !editSalesForm.date || editSalesForm.quantity <= 0 || !editSalesForm.payment_method) {
+            toast.error('Please fill all fields correctly');
+            return;
+        }
+        if (editSalesForm.date > todayISO) {
+            toast.error('Sales date cannot be in the future');
+            return;
+        }
+        const unitPrice = getUnitPriceForSale(editSalesForm.mineId, editSalesForm.date);
+        if (!unitPrice) {
+            toast.error('Add a production record first to set the unit price.');
+            return;
+        }
+        const availableQty = getAvailableQuantity(editSalesForm.mineId, editSalesForm.date, selectedEntry.recordId);
+        if (availableQty !== null && editSalesForm.quantity > availableQty) {
+            toast.error('Sales quantity exceeds available produced quantity for this mine and date.');
+            return;
+        }
+        try {
+            await updateSalesTransaction({
+                id: selectedEntry.recordId,
+                mine: editSalesForm.mineId,
+                date: editSalesForm.date,
+                quantity: editSalesForm.quantity,
+                payment_method: editSalesForm.payment_method
+            }).unwrap();
+            setShowEditSalesModal(false);
+            setSelectedEntry(null);
+            toast.success('Sales transaction updated.');
+            try {
+                await syncModels().unwrap();
+                setSyncMessage({ type: 'success', text: 'AI models synced and forecasts refreshed.' });
+            } catch (err) {
+                const apiErr = err as { data?: { detail?: string } };
+                setSyncMessage({ type: 'error', text: apiErr?.data?.detail || 'AI sync failed. Try again later.' });
+            }
+        } catch (error) {
+            console.error('Failed to update sales transaction:', error);
+            toast.error('Failed to update sales transaction');
+        }
+    };
+
+    const confirmDelete = async () => {
+        if (!selectedEntry) return;
+        try {
+            if (selectedEntry.type === 'production') {
+                await deleteProductionRecord(selectedEntry.recordId).unwrap();
+                toast.success('Production record deleted.');
+            } else {
+                await deleteSalesTransaction(selectedEntry.recordId).unwrap();
+                toast.success('Sales transaction deleted.');
+            }
+            setShowDeleteModal(false);
+            setSelectedEntry(null);
+            try {
+                await syncModels().unwrap();
+                setSyncMessage({ type: 'success', text: 'AI models synced and forecasts refreshed.' });
+            } catch (err) {
+                const apiErr = err as { data?: { detail?: string } };
+                setSyncMessage({ type: 'error', text: apiErr?.data?.detail || 'AI sync failed. Try again later.' });
+            }
+        } catch (error) {
+            console.error('Failed to delete record:', error);
+            toast.error('Failed to delete record');
         }
     };
 
@@ -559,11 +735,25 @@ export default function RevenueManagement() {
                                                             >
                                                                 <Eye size={18} className="text-blue-600" />
                                                             </button>
-                                                            {entry.type === 'sales' && entry.status === 'Pending' && (
+                                                            <button
+                                                                onClick={() => handleEdit(entry)}
+                                                                className="p-2 hover:bg-slate-100 rounded-lg transition"
+                                                                title="Edit"
+                                                            >
+                                                                <Edit size={18} className="text-slate-600" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDelete(entry)}
+                                                                className="p-2 hover:bg-red-50 rounded-lg transition"
+                                                                title="Delete"
+                                                            >
+                                                                <Trash2 size={18} className="text-red-600" />
+                                                            </button>
+                                                            {entry.status === 'Pending' && (
                                                                 <>
                                                                     <button
                                                                         onClick={() => handleApprove(entry)}
-                                                                        disabled={updatingStatus}
+                                                                        disabled={updatingStatus || updatingProductionStatus}
                                                                         className="p-2 hover:bg-green-50 rounded-lg transition"
                                                                         title="Approve"
                                                                     >
@@ -571,7 +761,7 @@ export default function RevenueManagement() {
                                                                     </button>
                                                                     <button
                                                                         onClick={() => handleReject(entry)}
-                                                                        disabled={updatingStatus}
+                                                                        disabled={updatingStatus || updatingProductionStatus}
                                                                         className="p-2 hover:bg-red-50 rounded-lg transition"
                                                                         title="Reject"
                                                                     >
@@ -802,16 +992,13 @@ export default function RevenueManagement() {
                                     placeholder="0.00"
                                 />
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Unit Price ({currencyCode})</label>
-                                <input
-                                    type="number"
-                                    step="1000"
-                                    value={salesForm.unit_price}
-                                    onChange={(e) => setSalesForm({ ...salesForm, unit_price: parseFloat(e.target.value) })}
-                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    placeholder="0"
-                                />
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                                <p className="text-xs uppercase tracking-wide text-slate-500">Unit Price ({currencyCode})</p>
+                                <p className="mt-1 text-base font-semibold text-slate-900">
+                                    {getUnitPriceForSale(salesForm.mineId, salesForm.date) !== null
+                                        ? formatCurrency(getUnitPriceForSale(salesForm.mineId, salesForm.date) || 0)
+                                        : 'Add production to set price'}
+                                </p>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
@@ -839,11 +1026,11 @@ export default function RevenueManagement() {
                                     )}
                                 </div>
                             )}
-                            {salesForm.quantity > 0 && salesForm.unit_price > 0 && (
+                            {salesForm.quantity > 0 && (getUnitPriceForSale(salesForm.mineId, salesForm.date) || 0) > 0 && (
                                 <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
                                     <p className="text-sm text-gray-600">Total Amount:</p>
                                     <p className="text-xl font-bold text-blue-700">
-                                        {formatCurrency(salesForm.quantity * salesForm.unit_price)}
+                                        {formatCurrency(salesForm.quantity * (getUnitPriceForSale(salesForm.mineId, salesForm.date) || 0))}
                                     </p>
                                 </div>
                             )}
@@ -861,6 +1048,248 @@ export default function RevenueManagement() {
                                 className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {creatingSales ? 'Creating...' : syncingModels ? 'Updating AI...' : 'Save Sales'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Production Modal */}
+            {showEditProductionModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6">
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-2xl font-bold text-gray-900">Edit Production</h2>
+                            <button onClick={() => setShowEditProductionModal(false)} className="p-1 hover:bg-gray-100 rounded-lg">
+                                <X size={24} />
+                            </button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Mine Site</label>
+                                <select
+                                    value={editProductionForm.mineId || ''}
+                                    onChange={(e) => {
+                                        const selectedId = Number(e.target.value);
+                                        const selectedMine = mineCompanies.find((m: MineCompany) => m.id === selectedId);
+                                        setEditProductionForm({
+                                            ...editProductionForm,
+                                            mineId: selectedId,
+                                            mineName: selectedMine?.name || ''
+                                        });
+                                    }}
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="">Select Mine Site</option>
+                                    {mineCompanies.map((mine: MineCompany) => (
+                                        <option key={mine.id} value={mine.id}>
+                                            {mine.name} - {mine.location}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Production Date</label>
+                                <input
+                                    type="date"
+                                    value={editProductionForm.date}
+                                    onChange={(e) => setEditProductionForm({ ...editProductionForm, date: e.target.value })}
+                                    max={todayISO}
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Quantity Produced (Tons)</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    value={editProductionForm.quantity_produced}
+                                    onChange={(e) => setEditProductionForm({ ...editProductionForm, quantity_produced: parseFloat(e.target.value) })}
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="0.00"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Unit Price ({currencyCode})</label>
+                                <input
+                                    type="number"
+                                    step="1000"
+                                    value={editProductionForm.unit_price}
+                                    onChange={(e) => setEditProductionForm({ ...editProductionForm, unit_price: parseFloat(e.target.value) })}
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="0"
+                                />
+                            </div>
+                            {editProductionForm.quantity_produced > 0 && editProductionForm.unit_price > 0 && (
+                                <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200">
+                                    <p className="text-sm text-gray-600">Total Revenue:</p>
+                                    <p className="text-xl font-bold text-emerald-700">
+                                        {formatCurrency(editProductionForm.quantity_produced * editProductionForm.unit_price)}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                onClick={() => setShowEditProductionModal(false)}
+                                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition font-medium"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleUpdateProduction}
+                                disabled={updatingProduction || syncingModels}
+                                className="flex-1 px-4 py-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {updatingProduction ? 'Updating...' : syncingModels ? 'Updating AI...' : 'Save Changes'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Sales Modal */}
+            {showEditSalesModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6">
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-2xl font-bold text-gray-900">Edit Sales</h2>
+                            <button onClick={() => setShowEditSalesModal(false)} className="p-1 hover:bg-gray-100 rounded-lg">
+                                <X size={24} />
+                            </button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Mine Site</label>
+                                <select
+                                    value={editSalesForm.mineId || ''}
+                                    onChange={(e) => {
+                                        const selectedId = Number(e.target.value);
+                                        const selectedMine = mineCompanies.find((m: MineCompany) => m.id === selectedId);
+                                        setEditSalesForm({
+                                            ...editSalesForm,
+                                            mineId: selectedId,
+                                            mineName: selectedMine?.name || ''
+                                        });
+                                    }}
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="">Select Mine Site</option>
+                                    {mineCompanies.map((mine: MineCompany) => (
+                                        <option key={mine.id} value={mine.id}>
+                                            {mine.name} - {mine.location}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Sale Date</label>
+                                <input
+                                    type="date"
+                                    value={editSalesForm.date}
+                                    onChange={(e) => setEditSalesForm({ ...editSalesForm, date: e.target.value })}
+                                    max={todayISO}
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Quantity Sold</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    value={editSalesForm.quantity}
+                                    onChange={(e) => setEditSalesForm({ ...editSalesForm, quantity: parseFloat(e.target.value) })}
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="0.00"
+                                />
+                            </div>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                                <p className="text-xs uppercase tracking-wide text-slate-500">Unit Price ({currencyCode})</p>
+                                <p className="mt-1 text-base font-semibold text-slate-900">
+                                    {getUnitPriceForSale(editSalesForm.mineId, editSalesForm.date) !== null
+                                        ? formatCurrency(getUnitPriceForSale(editSalesForm.mineId, editSalesForm.date) || 0)
+                                        : 'Add production to set price'}
+                                </p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
+                                <select
+                                    value={editSalesForm.payment_method}
+                                    onChange={(e) => setEditSalesForm({ ...editSalesForm, payment_method: e.target.value })}
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="Bank Transfer">Bank Transfer</option>
+                                    <option value="Cash">Cash</option>
+                                    <option value="Mobile Money">Mobile Money</option>
+                                    <option value="Check">Check</option>
+                                </select>
+                            </div>
+                            {editSalesForm.mineId && editSalesForm.date && (
+                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                                    Available production up to {editSalesForm.date}:{" "}
+                                    <span className="font-semibold">
+                                    {getAvailableQuantity(editSalesForm.mineId, editSalesForm.date, selectedEntry?.recordId) ?? 0} tons
+                                    </span>
+                                    {getAvailableQuantity(editSalesForm.mineId, editSalesForm.date, selectedEntry?.recordId) === 0 && (
+                                        <div className="text-xs text-amber-700 mt-1">
+                                            No production recorded yet. Add production before sales.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            {editSalesForm.quantity > 0 && (getUnitPriceForSale(editSalesForm.mineId, editSalesForm.date) || 0) > 0 && (
+                                <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                                    <p className="text-sm text-gray-600">Total Amount:</p>
+                                    <p className="text-xl font-bold text-blue-700">
+                                        {formatCurrency(editSalesForm.quantity * (getUnitPriceForSale(editSalesForm.mineId, editSalesForm.date) || 0))}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                onClick={() => setShowEditSalesModal(false)}
+                                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition font-medium"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleUpdateSales}
+                                disabled={updatingSales || syncingModels}
+                                className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {updatingSales ? 'Updating...' : syncingModels ? 'Updating AI...' : 'Save Changes'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {showDeleteModal && selectedEntry && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+                        <div className="text-center mb-6">
+                            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <Trash2 size={30} className="text-red-600" />
+                            </div>
+                            <h2 className="text-2xl font-bold text-gray-900 mb-2">Delete {selectedEntry.revenueSource}</h2>
+                            <p className="text-gray-600">
+                                Are you sure you want to delete this {selectedEntry.type === 'production' ? 'production' : 'sales'} record?
+                            </p>
+                        </div>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowDeleteModal(false)}
+                                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition font-medium"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={confirmDelete}
+                                className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition font-medium"
+                            >
+                                Delete
                             </button>
                         </div>
                     </div>
@@ -930,29 +1359,29 @@ export default function RevenueManagement() {
                             )}
                         </div>
                         <div className="flex gap-3 mt-6">
-                            {selectedEntry.type === 'sales' && selectedEntry.status === 'Pending' && (
+                            {selectedEntry.status === 'Pending' && (
                                 <>
                                     <button
                                         onClick={() => {
                                             setShowViewModal(false);
                                             handleApprove(selectedEntry);
                                         }}
-                                        disabled={updatingStatus}
+                                        disabled={updatingStatus || updatingProductionStatus}
                                         className="flex-1 px-4 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition font-medium flex items-center justify-center gap-2"
                                     >
                                         <Check size={20} />
-                                        Approve Revenue
+                                        Approve
                                     </button>
                                     <button
                                         onClick={() => {
                                             setShowViewModal(false);
                                             handleReject(selectedEntry);
                                         }}
-                                        disabled={updatingStatus}
+                                        disabled={updatingStatus || updatingProductionStatus}
                                         className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition font-medium flex items-center justify-center gap-2"
                                     >
                                         <X size={20} />
-                                        Reject Revenue
+                                        Reject
                                     </button>
                                 </>
                             )}
@@ -980,10 +1409,10 @@ export default function RevenueManagement() {
                                 )}
                             </div>
                             <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                                {actionType === 'approve' ? 'Approve Revenue' : 'Reject Revenue'}
+                                {actionType === 'approve' ? 'Approve Entry' : 'Reject Entry'}
                             </h2>
                             <p className="text-gray-600">
-                                Are you sure you want to {actionType} this revenue entry?
+                                Are you sure you want to {actionType} this {selectedEntry?.type === 'production' ? 'production' : 'sales'} entry?
                             </p>
                         </div>
                         <div className="flex gap-3">
