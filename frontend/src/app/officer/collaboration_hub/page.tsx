@@ -24,17 +24,18 @@ interface User {
   full_name?: string;
 }
 
+// Fix: Update Message interface to match CommunicationMessage from your API
 interface Message {
   id: number;
   sender: number;
   receiver: number;
-  sender_details: {
+  sender_details?: {
     id: number;
     username: string;
     full_name: string;
     email: string;
   };
-  receiver_details: {
+  receiver_details?: {
     id: number;
     username: string;
     full_name: string;
@@ -45,7 +46,7 @@ interface Message {
   message_type: string;
   priority: string;
   timestamp: string;
-  time_since: string;
+  time_since?: string; // Make this optional to match the API response
   is_read: boolean;
   read_at?: string;
 }
@@ -204,8 +205,8 @@ const CollaborationHubChat = () => {
                       <div className="bg-gradient-to-r from-indigo-900 to-indigo-800 rounded-lg p-4 text-white">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center space-x-2">
-                            <span className="text-sm font-medium text-white">{message.sender_details.full_name}</span>
-                            <span className="text-xs text-white/70">-> {message.receiver_details.full_name}</span>
+                            <span className="text-sm font-medium text-white">{message.sender_details?.full_name || 'Unknown'}</span>
+                            <span className="text-xs text-white/70">-{'>'} {message.receiver_details?.full_name || 'Unknown'}</span>
                           </div>
                           <div className="flex items-center space-x-2">
                             <span className={`text-xs px-2 py-1 rounded ${getPriorityColor(message.priority)}`}>
@@ -222,7 +223,7 @@ const CollaborationHubChat = () => {
                         <p className="text-sm text-white/95">{message.message_content}</p>
 
                         <div className="flex items-center justify-between mt-3 pt-2 border-t border-white/20">
-                          <span className="text-xs text-white/70">{message.time_since}</span>
+                          <span className="text-xs text-white/70">{message.time_since || 'Just now'}</span>
                           <div className="flex items-center space-x-2">
                             <span className="text-xs text-white/70">{message.message_type}</span>
                             {!message.is_read && <div className="w-2 h-2 bg-yellow-400 rounded-full" />}
@@ -405,4 +406,3 @@ const CollaborationHubChat = () => {
 };
 
 export default CollaborationHubChat;
-

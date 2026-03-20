@@ -41,9 +41,7 @@ const ProfileSettings = () => {
             setMessage({ type: null, text: '' })
         }, 5000)
     }
-
-
-    interface ProfileFormData {
+   interface ProfileFormData {
         username: string
         email: string
         currentPassword: string

@@ -38,11 +38,6 @@ const items = [
         icon: BarChart3,
     },
     {
-        title: "AI Analytics & Insights",
-        url: "/officer/ai-analytics",
-        icon: Ship,
-    },
-    {
         title: "Reports",
         url: "/officer/report",
         icon: Shield,
