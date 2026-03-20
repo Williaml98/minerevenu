@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, FileText, Users, Clock } from 'lucide-react';
-import { useGetAllUsersQuery } from '@/lib/redux/slices/AuthSlice';
-import { useGetAllMessagesQuery, useSendMessageMutation } from '@/lib/redux/slices/CommunicationSlices';
+import { Send, FileText, Users, Clock, X } from 'lucide-react';
+import { useGetAllMessagesQuery, useGetCommunicationUsersQuery, useSendMessageMutation } from '@/lib/redux/slices/CommunicationSlices';
 import Image from 'next/image';
+import { toast } from "sonner";
 
 interface MessageFormData {
   receiver: number;
@@ -18,22 +18,22 @@ interface User {
   id: number;
   username: string;
   email: string;
-  role: string;
+  role?: string;
   profile_picture?: string;
-  is_active: boolean;
+  is_active?: boolean;
+  full_name?: string;
 }
-
 interface Message {
   id: number;
   sender: number;
   receiver: number;
-  sender_details: {
+  sender_details?: {
     id: number;
     username: string;
     full_name: string;
     email: string;
   };
-  receiver_details: {
+  receiver_details?: {
     id: number;
     username: string;
     full_name: string;
@@ -44,13 +44,13 @@ interface Message {
   message_type: string;
   priority: string;
   timestamp: string;
-  time_since: string;
+  time_since?: string;
   is_read: boolean;
   read_at?: string;
 }
 
 const CollaborationHubChat = () => {
-  const { data: usersData = [], isLoading: usersLoading } = useGetAllUsersQuery({});
+  const { data: usersData = [], isLoading: usersLoading } = useGetCommunicationUsersQuery({});
   const { data: messagesData = [], isLoading: messagesLoading, refetch: refetchMessages } = useGetAllMessagesQuery({});
   const [sendMessage, { isLoading: sendingMessage }] = useSendMessageMutation();
 
@@ -89,7 +89,7 @@ const CollaborationHubChat = () => {
 
   const handleSendMessage = async () => {
     if (!messageForm.receiver || !messageForm.subject || !messageForm.message_content) {
-      alert('Please fill in all required fields');
+      toast.error('Please fill in all required fields');
       return;
     }
 
@@ -104,9 +104,10 @@ const CollaborationHubChat = () => {
       });
       setShowComposeForm(false);
       refetchMessages();
+      toast.success("Message sent.");
     } catch (error) {
       console.error('Failed to send message:', error);
-      alert('Failed to send message. Please try again.');
+      toast.error('Failed to send message. Please try again.');
     }
   };
 
@@ -117,7 +118,7 @@ const CollaborationHubChat = () => {
     }));
   };
 
-  const activeUsers = usersData.filter((user: User) => user.is_active && user.id !== 1);
+  const activeUsers = usersData.filter((user: User) => user.id !== 1);
 
   if (usersLoading || messagesLoading) {
     return (
@@ -157,7 +158,7 @@ const CollaborationHubChat = () => {
                     </div>
                     <div className="flex-1">
                       <p className="text-sm font-medium text-gray-900">{user.username}</p>
-                      <p className="text-xs text-gray-500">{user.role}</p>
+                      <p className="text-xs text-gray-500">{user.role || "User"}</p>
                     </div>
                     <div className="w-2 h-2 bg-green-400 rounded-full" />
                   </div>
@@ -177,7 +178,7 @@ const CollaborationHubChat = () => {
                     <div>
                       <h3 className="font-semibold text-white">Team Communications</h3>
                       <p className="text-sm text-white/70">
-                        {messagesData.length} messages � {activeUsers.length} active users
+                        {messagesData.length} messages - {activeUsers.length} active users
                       </p>
                     </div>
                   </div>
@@ -202,8 +203,8 @@ const CollaborationHubChat = () => {
                       <div className="bg-gradient-to-r from-indigo-900 to-indigo-800 rounded-lg p-4 text-white">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center space-x-2">
-                            <span className="text-sm font-medium text-white">{message.sender_details.full_name}</span>
-                            <span className="text-xs text-white/70">? {message.receiver_details.full_name}</span>
+                            <span className="text-sm font-medium text-white">{message.sender_details?.full_name || 'Unknown'}</span>
+                            <span className="text-xs text-white/70">-{'>'} {message.receiver_details?.full_name || 'Unknown'}</span>
                           </div>
                           <div className="flex items-center space-x-2">
                             <span className={`text-xs px-2 py-1 rounded ${getPriorityColor(message.priority)}`}>
@@ -220,7 +221,7 @@ const CollaborationHubChat = () => {
                         <p className="text-sm text-white/95">{message.message_content}</p>
 
                         <div className="flex items-center justify-between mt-3 pt-2 border-t border-white/20">
-                          <span className="text-xs text-white/70">{message.time_since}</span>
+                          <span className="text-xs text-white/70">{message.time_since || 'Just now'}</span>
                           <div className="flex items-center space-x-2">
                             <span className="text-xs text-white/70">{message.message_type}</span>
                             {!message.is_read && <div className="w-2 h-2 bg-yellow-400 rounded-full" />}
@@ -238,8 +239,12 @@ const CollaborationHubChat = () => {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <h4 className="font-medium text-gray-900">Compose Message</h4>
-                      <button onClick={() => setShowComposeForm(false)} className="text-gray-500 hover:text-gray-700">
-                        �
+                      <button
+                        onClick={() => setShowComposeForm(false)}
+                        className="text-gray-500 hover:text-gray-700"
+                        aria-label="Close"
+                      >
+                        <X size={16} />
                       </button>
                     </div>
 
@@ -254,7 +259,7 @@ const CollaborationHubChat = () => {
                           <option value={0}>Select receiver</option>
                           {activeUsers.map((user: User) => (
                             <option key={user.id} value={user.id}>
-                              {user.username} ({user.role})
+                              {(user.full_name || user.username) ?? "User"} ({user.role || "User"})
                             </option>
                           ))}
                         </select>
