@@ -23,8 +23,6 @@ interface User {
   is_active?: boolean;
   full_name?: string;
 }
-
-// Fix: Update Message interface to match CommunicationMessage from your API
 interface Message {
   id: number;
   sender: number;
@@ -46,7 +44,7 @@ interface Message {
   message_type: string;
   priority: string;
   timestamp: string;
-  time_since?: string; // Make this optional to match the API response
+  time_since?: string; 
   is_read: boolean;
   read_at?: string;
 }
