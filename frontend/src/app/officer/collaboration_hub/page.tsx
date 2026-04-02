@@ -44,7 +44,7 @@ interface Message {
   message_type: string;
   priority: string;
   timestamp: string;
-  time_since?: string; 
+  time_since?: string;
   is_read: boolean;
   read_at?: string;
 }
