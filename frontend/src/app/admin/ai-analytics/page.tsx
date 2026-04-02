@@ -14,7 +14,17 @@ import {
 } from "@/lib/redux/slices/analyticsApi";
 import { useGetMineCompaniesQuery, useGetSalesTransactionsQuery } from "@/lib/redux/slices/MiningSlice";
 
-export default function AIAnalytics() {
+interface AIAnalyticsDashboardProps {
+    allowModelActions?: boolean;
+    title?: string;
+    description?: string;
+}
+
+export function AIAnalyticsDashboard({
+    allowModelActions = true,
+    title = 'AI Analytics & Insights',
+    description = 'Intelligent financial forecasts, anomaly detection, and revenue analysis powered by AI.',
+}: AIAnalyticsDashboardProps) {
     const [forecastSite, setForecastSite] = useState('All Sites');
     const [forecastPeriod, setForecastPeriod] = useState('30 days');
     const [trendView, setTrendView] = useState('Weekly');
@@ -324,9 +334,9 @@ export default function AIAnalytics() {
             <div className="max-w-[1600px] mx-auto">
                 <div className="mb-8 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900">AI Analytics & Insights</h1>
+                        <h1 className="text-3xl font-bold text-gray-900">{title}</h1>
                         <p className="text-gray-600 mt-2">
-                            Intelligent financial forecasts, anomaly detection, and revenue analysis powered by AI.
+                            {description}
                         </p>
                         {anyLoading && (
                             <p className="text-sm text-gray-500 mt-1">
@@ -339,24 +349,26 @@ export default function AIAnalytics() {
                             </p>
                         )}
                     </div>
-                    <div className="flex flex-wrap gap-3">
-                        <button
-                            onClick={() => handleAction(() => regenerateForecasts({ steps: 6, replace: true }).unwrap(), "Forecasts regenerated")}
-                            disabled={regenLoading}
-                            className="px-4 py-2 rounded-lg border border-blue-600 text-blue-600 hover:bg-blue-50 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
-                        >
-                            <BarChart3 size={16} />
-                            {regenLoading ? "Regenerating Forecasts..." : "Regenerate Forecasts"}
-                        </button>
-                        <button
-                            onClick={() => handleAction(() => retrainModels().unwrap(), "Models retrained")}
-                            disabled={retrainLoading}
-                            className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
-                        >
-                            <Activity size={16} />
-                            {retrainLoading ? "Retraining Models..." : "Retrain AI Models"}
-                        </button>
-                    </div>
+                    {allowModelActions && (
+                        <div className="flex flex-wrap gap-3">
+                            <button
+                                onClick={() => handleAction(() => regenerateForecasts({ steps: 6, replace: true }).unwrap(), "Forecasts regenerated")}
+                                disabled={regenLoading}
+                                className="px-4 py-2 rounded-lg border border-blue-600 text-blue-600 hover:bg-blue-50 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                                <BarChart3 size={16} />
+                                {regenLoading ? "Regenerating Forecasts..." : "Regenerate Forecasts"}
+                            </button>
+                            <button
+                                onClick={() => handleAction(() => retrainModels().unwrap(), "Models retrained")}
+                                disabled={retrainLoading}
+                                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                                <Activity size={16} />
+                                {retrainLoading ? "Retraining Models..." : "Retrain AI Models"}
+                            </button>
+                        </div>
+                    )}
                 </div>
                 {actionMessage && (
                     <div
@@ -418,7 +430,7 @@ export default function AIAnalytics() {
                         )}
                         {!forecastStatus?.ready && (
                             <p className="text-xs text-amber-600 mt-3">
-                                Forecast model not trained yet. Run "Retrain AI Models" to activate predictions.
+                                Forecast model not trained yet. Run the Retrain AI Models action to activate predictions.
                             </p>
                         )}
                     </div>
@@ -937,6 +949,10 @@ export default function AIAnalytics() {
             </div>
         </div>
     );
+}
+
+export default function AIAnalytics() {
+    return <AIAnalyticsDashboard />;
 }
 
 

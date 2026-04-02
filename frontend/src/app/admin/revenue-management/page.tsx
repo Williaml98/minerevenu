@@ -98,11 +98,11 @@ export default function RevenueManagement() {
 
     const [createProductionRecord, { isLoading: creatingProduction }] = useCreateProductionRecordMutation();
     const [updateProductionRecord, { isLoading: updatingProduction }] = useUpdateProductionRecordMutation();
-    const [deleteProductionRecord, { isLoading: deletingProduction }] = useDeleteProductionRecordMutation();
+    const [deleteProductionRecord] = useDeleteProductionRecordMutation();
     const [updateProductionStatus, { isLoading: updatingProductionStatus }] = useUpdateProductionStatusMutation();
     const [createSalesTransaction, { isLoading: creatingSales }] = useCreateSalesTransactionMutation();
     const [updateSalesTransaction, { isLoading: updatingSales }] = useUpdateSalesTransactionMutation();
-    const [deleteSalesTransaction, { isLoading: deletingSales }] = useDeleteSalesTransactionMutation();
+    const [deleteSalesTransaction] = useDeleteSalesTransactionMutation();
     const [updateSalesTransactionStatus, { isLoading: updatingStatus }] = useUpdateSalesTransactionStatusMutation();
     const [syncModels, { isLoading: syncingModels }] = useSyncModelsMutation();
 
@@ -558,6 +558,16 @@ export default function RevenueManagement() {
         return matchesSite && matchesStatus && matchesRevenueSource && matchesDateFrom && matchesDateTo;
     });
 
+    const filteredProductionRecords = productionRecords.filter((record: ProductionRecord) => {
+        const mine = mineCompanies.find((company: MineCompany) => company.id === record.mine);
+        const siteName = mine?.name || `Mine #${record.mine}`;
+        const matchesSite = siteFilter === 'All Sites' || siteName === siteFilter;
+        const matchesStatus = statusFilter === 'All' || (record.status || 'Pending') === statusFilter;
+        const matchesDateFrom = !dateFrom || record.date >= dateFrom;
+        const matchesDateTo = !dateTo || record.date <= dateTo;
+        return matchesSite && matchesStatus && matchesDateFrom && matchesDateTo;
+    });
+
     // Get unique site names for filter
     const siteNames = ['All Sites', ...new Set(entries.map(e => e.siteName))];
 
@@ -790,6 +800,57 @@ export default function RevenueManagement() {
                                     <button className="px-3 py-1.5 rounded-lg hover:bg-gray-100 text-sm">3</button>
                                     <button className="px-3 py-1.5 rounded-lg hover:bg-gray-100 text-sm">Next</button>
                                 </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-white rounded-2xl shadow-sm overflow-hidden mt-6">
+                            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-lg font-semibold text-gray-900">Production Table</h2>
+                                    <p className="text-sm text-gray-500 mt-1">Dedicated production view for admin review and follow-up.</p>
+                                </div>
+                                <span className="text-sm text-gray-500">{filteredProductionRecords.length} records</span>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead className="bg-gray-50 border-b border-gray-200">
+                                        <tr>
+                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Date</th>
+                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Site Name</th>
+                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Quantity</th>
+                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Unit Price</th>
+                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Revenue</th>
+                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200">
+                                        {filteredProductionRecords.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                                                    No production records found
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            filteredProductionRecords.map((record) => {
+                                                const mine = mineCompanies.find((company: MineCompany) => company.id === record.mine);
+                                                return (
+                                                    <tr key={record.id} className="hover:bg-gray-50 transition">
+                                                        <td className="px-6 py-4 text-gray-600">{record.date}</td>
+                                                        <td className="px-6 py-4 font-medium text-gray-900">{mine?.name || `Mine #${record.mine}`}</td>
+                                                        <td className="px-6 py-4 text-gray-600">{record.quantity_produced.toFixed(2)} tons</td>
+                                                        <td className="px-6 py-4 text-gray-600">{formatCurrency(record.unit_price)}</td>
+                                                        <td className="px-6 py-4 font-semibold text-gray-900">{formatCurrency(record.total_revenue || (record.quantity_produced * record.unit_price))}</td>
+                                                        <td className="px-6 py-4">
+                                                            <span className={`px-3 py-1.5 rounded-full text-xs font-medium border ${getStatusColor(record.status || 'Pending')}`}>
+                                                                {formatStatusLabel((record.status || 'Pending') as RevenueEntry['status'])}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>

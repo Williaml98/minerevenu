@@ -26,7 +26,9 @@ interface Report {
     period: string;
     generatedOn: string;
     createdBy: string;
-    dataType: 'audit' | 'companies' | 'production' | 'sales' | 'forecast' | 'availability';
+    dataType: 'audit' | 'companies' | 'production' | 'sales' | 'forecast' | 'availability' | 'sites';
+    selectedSite: string;
+    dateRange: DateRange;
 }
 
 interface DateRange {
@@ -35,7 +37,7 @@ interface DateRange {
 }
 
 type ReportType = 'Daily' | 'Weekly' | 'Monthly' | 'Yearly';
-type DataType = 'audit' | 'companies' | 'production' | 'sales' | 'forecast' | 'availability';
+type DataType = 'audit' | 'companies' | 'production' | 'sales' | 'forecast' | 'availability' | 'sites';
 type DataRecord = Record<string, unknown>;
 type ReportColumn = { header: string; dataKey: string };
 type SalesRow = { total_amount: number; unit_price: number; quantity: number };
@@ -142,6 +144,23 @@ export default function ReportCenter() {
         });
     }, [productionRecords, salesTransactions, companies, dateRange, selectedSite]);
 
+    const getSiteLabel = (siteValue: string) => {
+        if (siteValue === 'all') return 'All Sites';
+        const site = (companies as CompanyRow[]).find((company) => String(company.id) === siteValue);
+        return site?.name || `Mine #${siteValue}`;
+    };
+
+    const siteStatusData = useMemo(() => {
+        return (companies as DataRecord[]).map((company) => ({
+            site_name: company["name"],
+            location: company["location"],
+            mineral_type: company["mineral_type"],
+            status: company["status"],
+            license_number: company["license_number"],
+            created_at: company["created_at"],
+        }));
+    }, [companies]);
+
     // Filter data based on date range and site
     const filteredData = useMemo(() => {
         const filterByDate = <T extends DataRecord>(items: T[], dateField: string): T[] => {
@@ -173,10 +192,12 @@ export default function ReportCenter() {
                 return filterByDate(forecasts as DataRecord[], 'forecast_date');
             case 'availability':
                 return availabilityData as DataRecord[];
+            case 'sites':
+                return siteStatusData as DataRecord[];
             default:
                 return [];
         }
-    }, [selectedDataType, dateRange, selectedSite, auditLogs, companies, productionRecords, salesTransactions, forecasts, availabilityData]);
+    }, [selectedDataType, dateRange, selectedSite, auditLogs, companies, productionRecords, salesTransactions, forecasts, availabilityData, siteStatusData]);
 
     // Generate report
     const generateReport = () => {
@@ -189,11 +210,56 @@ export default function ReportCenter() {
             period: `${dateRange.from} to ${dateRange.to}`,
             generatedOn: new Date().toISOString(),
             createdBy: exportedBy,
-            dataType: selectedDataType
+            dataType: selectedDataType,
+            selectedSite,
+            dateRange: { ...dateRange },
         };
 
         setReports([newReport, ...reports]);
         setIsGenerating(false);
+    };
+
+    const getReportData = (report: Report): DataRecord[] => {
+        const siteValue = report.selectedSite;
+        const from = report.dateRange.from;
+        const to = report.dateRange.to;
+        const filterByDate = (items: DataRecord[], dateField: string) =>
+            items.filter((item) => {
+                const rawDateValue = item[dateField] ?? item['timestamp'] ?? item['date'] ?? item['forecast_date'];
+                const dateInput = toDateInput(rawDateValue);
+                if (dateInput === null) return false;
+                const itemDate = new Date(dateInput);
+                if (Number.isNaN(itemDate.getTime())) return false;
+                return itemDate >= new Date(from) && itemDate <= new Date(to);
+            });
+        const filterBySite = (items: DataRecord[]) => {
+            if (siteValue === 'all') return items;
+            return items.filter((item) => String(item.mine ?? item.id) === siteValue);
+        };
+
+        switch (report.dataType) {
+            case 'audit':
+                return filterByDate(auditLogs as DataRecord[], 'timestamp');
+            case 'companies':
+                return companies as DataRecord[];
+            case 'production':
+                return filterBySite(filterByDate(productionRecords as DataRecord[], 'date'));
+            case 'sales':
+                return filterBySite(
+                    filterByDate(salesTransactions as DataRecord[], 'date').map((sale) => ({
+                        ...sale,
+                        site_name: getSiteLabel(String(sale.mine)),
+                    })),
+                );
+            case 'forecast':
+                return filterByDate(forecasts as DataRecord[], 'forecast_date');
+            case 'availability':
+                return (availabilityData as DataRecord[]).filter((row) => siteValue === 'all' || String(row.mine_id) === siteValue);
+            case 'sites':
+                return siteStatusData as DataRecord[];
+            default:
+                return [];
+        }
     };
 
     // Export to PDF
@@ -215,14 +281,19 @@ export default function ReportCenter() {
         // Metadata
         doc.setFontSize(10);
         doc.text(`Period: ${report.period}`, 14, 46);
-        doc.text(`Generated: ${new Date(report.generatedOn).toLocaleString()}`, 14, 52);
+        const reportSiteLabel = getSiteLabel(report.selectedSite);
+        if (report.dataType === 'sales' && report.selectedSite !== 'all') {
+            doc.text(`Site Name: ${reportSiteLabel}`, 14, 52);
+            doc.text(`Generated: ${new Date(report.generatedOn).toLocaleString()}`, 14, 58);
+        } else {
+            doc.text(`Generated: ${new Date(report.generatedOn).toLocaleString()}`, 14, 52);
+        }
 
-        let data: DataRecord[] = [];
+        const data: DataRecord[] = getReportData(report);
         let columns: ReportColumn[] = [];
 
         switch (report.dataType) {
             case 'audit':
-                data = auditLogs as DataRecord[];
                 columns = [
                     { header: 'Timestamp', dataKey: 'timestamp' },
                     { header: 'User', dataKey: 'target_user' },
@@ -232,7 +303,6 @@ export default function ReportCenter() {
                 ];
                 break;
             case 'companies':
-                data = companies as DataRecord[];
                 columns = [
                     { header: 'Name', dataKey: 'name' },
                     { header: 'Location', dataKey: 'location' },
@@ -243,7 +313,6 @@ export default function ReportCenter() {
                 ];
                 break;
             case 'production':
-                data = productionRecords as DataRecord[];
                 columns = [
                     { header: 'Date', dataKey: 'date' },
                     { header: 'Quantity Produced', dataKey: 'quantity_produced' },
@@ -253,8 +322,15 @@ export default function ReportCenter() {
                 ];
                 break;
             case 'sales':
-                data = salesTransactions as DataRecord[];
-                columns = [
+                columns = report.selectedSite === 'all' ? [
+                    { header: 'Site Name', dataKey: 'site_name' },
+                    { header: 'Date', dataKey: 'date' },
+                    { header: 'Quantity', dataKey: 'quantity' },
+                    { header: 'Unit Price', dataKey: 'unit_price' },
+                    { header: 'Total Amount', dataKey: 'total_amount' },
+                    { header: 'Payment Method', dataKey: 'payment_method' },
+                    { header: 'Flagged', dataKey: 'is_flagged' }
+                ] : [
                     { header: 'Date', dataKey: 'date' },
                     { header: 'Quantity', dataKey: 'quantity' },
                     { header: 'Unit Price', dataKey: 'unit_price' },
@@ -264,7 +340,6 @@ export default function ReportCenter() {
                 ];
                 break;
             case 'forecast':
-                data = forecasts as DataRecord[];
                 columns = [
                     { header: 'Forecast Date', dataKey: 'forecast_date' },
                     { header: 'Predicted Revenue', dataKey: 'predicted_revenue' },
@@ -273,7 +348,6 @@ export default function ReportCenter() {
                 ];
                 break;
             case 'availability':
-                data = availabilityData as DataRecord[];
                 columns = [
                     { header: 'Mine ID', dataKey: 'mine_id' },
                     { header: 'Mine Name', dataKey: 'mine_name' },
@@ -283,11 +357,21 @@ export default function ReportCenter() {
                     { header: 'As Of', dataKey: 'as_of' }
                 ];
                 break;
+            case 'sites':
+                columns = [
+                    { header: 'Site Name', dataKey: 'site_name' },
+                    { header: 'Location', dataKey: 'location' },
+                    { header: 'Mineral Type', dataKey: 'mineral_type' },
+                    { header: 'Status', dataKey: 'status' },
+                    { header: 'License Number', dataKey: 'license_number' },
+                    { header: 'Created', dataKey: 'created_at' }
+                ];
+                break;
         }
 
         // Add table
         autoTable(doc, {
-            startY: 60,
+            startY: report.dataType === 'sales' && report.selectedSite !== 'all' ? 66 : 60,
             head: [columns.map(col => col.header)],
             body: data.map(item => columns.map(col => {
                 const value = item[col.dataKey];
@@ -322,33 +406,30 @@ export default function ReportCenter() {
 
     // Export to Excel
     const exportToExcel = (report: Report) => {
-        let data: DataRecord[] = [];
+        const data: DataRecord[] = getReportData(report);
         let sheetName = '';
 
         switch (report.dataType) {
             case 'audit':
-                data = auditLogs as DataRecord[];
                 sheetName = 'Audit Logs';
                 break;
             case 'companies':
-                data = companies as DataRecord[];
                 sheetName = 'Mining Companies';
                 break;
             case 'production':
-                data = productionRecords as DataRecord[];
                 sheetName = 'Production Records';
                 break;
             case 'sales':
-                data = salesTransactions as DataRecord[];
                 sheetName = 'Sales Transactions';
                 break;
             case 'forecast':
-                data = forecasts as DataRecord[];
                 sheetName = 'Forecasts';
                 break;
             case 'availability':
-                data = availabilityData as DataRecord[];
                 sheetName = 'Availability';
+                break;
+            case 'sites':
+                sheetName = 'Site Status';
                 break;
         }
 
@@ -382,6 +463,7 @@ export default function ReportCenter() {
             case 'sales': return <PieChart size={16} className="text-orange-600" />;
             case 'forecast': return <AlertCircle size={16} className="text-purple-600" />;
             case 'availability': return <TrendingUp size={16} className="text-indigo-600" />;
+            case 'sites': return <FileText size={16} className="text-teal-600" />;
         }
     };
 
@@ -484,6 +566,7 @@ export default function ReportCenter() {
                                 <option value="sales">Sales Transactions</option>
                                 <option value="forecast">Forecasts</option>
                                 <option value="availability">Available Production</option>
+                                <option value="sites">Site Status</option>
                             </select>
                         </div>
 
