@@ -164,6 +164,12 @@ export default function SignInPage() {
                                 </div>
 
                                 <div className="mt-2 relative">
+                                    <label
+                                        htmlFor="email"
+                                        className="block text-lg font-semibold text-gray-700 mb-4"
+                                    >
+                                        Password
+                                    </label>
                                     <input
                                         id="password"
                                         name="password"
