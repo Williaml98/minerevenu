@@ -177,13 +177,6 @@ const formatNumber = (value: number): string => {
     }).format(value);
 };
 
-const formatDecimalValue = (value: number): string => {
-    return new Intl.NumberFormat('en-US', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 3
-    }).format(value);
-};
-
 // ==================== Component ====================
 
 export default function AdminDashboard() {
@@ -373,7 +366,7 @@ export default function AdminDashboard() {
             id: '3',
             type: 'success',
             icon: 'TREND',
-            message: `AI forecast predicts ${formatDecimalValue(dashboardData.forecastAccuracy)}% accuracy for next quarter`,
+            message: `AI forecast predicts ${dashboardData.forecastAccuracy}% accuracy for next quarter`,
             time: new Date().toLocaleTimeString(),
             category: 'AI Insights',
             read: false
@@ -441,7 +434,7 @@ export default function AdminDashboard() {
                 <div className="absolute -right-4 -top-4 w-24 h-24 rounded-full bg-white/20"></div>
                 <div className="absolute -right-2 -bottom-2 w-16 h-16 rounded-full bg-white/20"></div>
             </div>
-            
+
             {/* Content */}
             <div className="relative z-10">
                 <div className="flex items-start justify-between mb-2">
@@ -455,14 +448,14 @@ export default function AdminDashboard() {
                         </span>
                     )}
                 </div>
-                
+
                 <div className="mt-2">
                     <h3 className="text-lg font-bold mb-0.5 truncate">
                         {typeof value === 'number' && title.includes('Revenue')
                             ? formatCurrency(value)
                             : typeof value === 'number' && (title.includes('Production') || title.includes('Avg'))
-                            ? formatNumber(value) + (title.includes('Avg') ? '' : ' t')
-                            : value}
+                                ? formatNumber(value) + (title.includes('Avg') ? '' : ' t')
+                                : value}
                     </h3>
                     <p className="text-xs font-medium text-white/80 truncate">{title}</p>
                     {subtitle && (
@@ -478,8 +471,8 @@ export default function AdminDashboard() {
                     <div className="mt-2 pt-2 border-t border-white/20">
                         <div className="flex items-center gap-1">
                             <div className="flex-1 h-1 bg-white/20 rounded-full overflow-hidden">
-                                <div 
-                                    className="h-full bg-white rounded-full" 
+                                <div
+                                    className="h-full bg-white rounded-full"
                                     style={{ width: `${Math.min(trend, 100)}%` }}
                                 />
                             </div>
@@ -528,7 +521,7 @@ export default function AdminDashboard() {
                             </div>
                         </div>
                     </div>
-                    
+
                     <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
                         <div className="flex items-center gap-2 bg-green-50 px-3 py-1.5 rounded-lg border border-green-200">
                             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
@@ -598,7 +591,7 @@ export default function AdminDashboard() {
                     />
                     <StatCard
                         title="AI Forecast"
-                        value={`${formatDecimalValue(dashboardData.forecastAccuracy)}%`}
+                        value={`${dashboardData.forecastAccuracy}%`}
                         icon={TrendingUp}
                         gradient="bg-gradient-to-br from-purple-500 to-purple-600"
                         change={{ value: '+2.4%', positive: true }}
@@ -697,9 +690,9 @@ export default function AdminDashboard() {
                                 <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={(value: number) => `${value}K`} />
                                 <Tooltip
                                     formatter={revenueTooltipFormatter}
-                                    contentStyle={{ 
-                                        backgroundColor: '#fff', 
-                                        borderRadius: '8px', 
+                                    contentStyle={{
+                                        backgroundColor: '#fff',
+                                        borderRadius: '8px',
                                         border: '1px solid #e2e8f0',
                                         boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
                                     }}
@@ -734,10 +727,10 @@ export default function AdminDashboard() {
                                 <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} />
                                 <YAxis stroke="#94a3b8" fontSize={12} />
                                 <Tooltip
-                                    contentStyle={{ 
-                                        backgroundColor: '#fff', 
-                                        borderRadius: '8px', 
-                                        border: '1px solid #e2e8f0' 
+                                    contentStyle={{
+                                        backgroundColor: '#fff',
+                                        borderRadius: '8px',
+                                        border: '1px solid #e2e8f0'
                                     }}
                                 />
                                 <Bar dataKey="quantity" radius={[4, 4, 0, 0]}>
@@ -929,6 +922,3 @@ export default function AdminDashboard() {
         </div>
     );
 }
-
-
-
