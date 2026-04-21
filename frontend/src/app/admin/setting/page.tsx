@@ -1,7 +1,7 @@
 "use client"
 import { useSession } from 'next-auth/react'
 import Image from 'next/image'
-import React, { useState, useRef } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { useUpdateProfileMutation } from '../../../lib/redux/slices/AuthSlice'
 
 const ProfileSettings = () => {
@@ -30,6 +30,14 @@ const ProfileSettings = () => {
         newPassword: '',
         profilePicture: null
     })
+
+    useEffect(() => {
+        setFormData((prev: ProfileFormData) => ({
+            ...prev,
+            username: sessionData?.user?.name || '',
+            email: sessionData?.user?.email || '',
+        }))
+    }, [sessionData?.user?.name, sessionData?.user?.email])
 
     const [emailNotifications, setEmailNotifications] = useState(true)
     const [previewImage, setPreviewImage] = useState<string | null>(null)

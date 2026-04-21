@@ -205,7 +205,7 @@ const CollaborationHubChat = () => {
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center space-x-2">
                             <span className="text-sm font-medium text-white">{message.sender_details.full_name}</span>
-                            <span className="text-xs text-white/70">-> {message.receiver_details.full_name}</span>
+                            <span className="text-xs text-white/70">{"->"} {message.receiver_details.full_name}</span>
                           </div>
                           <div className="flex items-center space-x-2">
                             <span className={`text-xs px-2 py-1 rounded ${getPriorityColor(message.priority)}`}>

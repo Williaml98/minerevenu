@@ -8,6 +8,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 const roles = ["All Roles", "Admin", "Officer", "Stakeholder"];
+const pageSizeOptions = [5, 10, 20, 50];
 
 interface User {
     id: number;
@@ -51,10 +52,10 @@ const UserManagementDashboard = () => {
     const [showAddUserModal, setShowAddUserModal] = useState(false);
     const [showRoleDropdown, setShowRoleDropdown] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
+    const [usersPerPage, setUsersPerPage] = useState(10);
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [editingDegreeFile, setEditingDegreeFile] = useState<File | null>(null);
     const [showEditModal, setShowEditModal] = useState(false);
-    const usersPerPage = 5;
     const [newUser, setNewUser] = useState<NewUser>({
         username: '',
         email: '',
@@ -138,10 +139,19 @@ const UserManagementDashboard = () => {
     }, [searchQuery, selectedRole, users]);
 
     // Pagination calculations
-    const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
+    const totalPages = Math.max(1, Math.ceil(filteredUsers.length / usersPerPage));
     const startIndex = (currentPage - 1) * usersPerPage;
     const endIndex = startIndex + usersPerPage;
     const currentUsers = filteredUsers.slice(startIndex, endIndex);
+    const safeStart = filteredUsers.length === 0 ? 0 : startIndex + 1;
+    const safeEnd = filteredUsers.length === 0 ? 0 : Math.min(endIndex, filteredUsers.length);
+    const hasFilters = Boolean(searchQuery) || selectedRole !== 'All Roles';
+
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+    }, [currentPage, totalPages]);
 
     const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSearchQuery(e.target.value);
@@ -314,6 +324,11 @@ const UserManagementDashboard = () => {
         }
     };
 
+    const handleUsersPerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        setUsersPerPage(Number(e.target.value));
+        setCurrentPage(1);
+    };
+
     const getPageNumbers = () => {
         const pageNumbers = [];
         const maxVisiblePages = 5;
@@ -439,8 +454,30 @@ const UserManagementDashboard = () => {
                     </div>
 
                     {/* Results info */}
-                    <div className="text-sm text-gray-600">
-                        Showing {startIndex + 1}-{Math.min(endIndex, filteredUsers.length)} of {filteredUsers.length} users
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                        <div className="text-sm text-gray-600">
+                            Showing <span className="font-semibold text-gray-900">{safeStart}-{safeEnd}</span> of <span className="font-semibold text-gray-900">{filteredUsers.length}</span> users
+                            {hasFilters && (
+                                <span className="text-gray-500"> after filters</span>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                            <label htmlFor="users-per-page" className="text-gray-600 whitespace-nowrap">
+                                Rows per page
+                            </label>
+                            <select
+                                id="users-per-page"
+                                value={usersPerPage}
+                                onChange={handleUsersPerPageChange}
+                                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-700 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500"
+                            >
+                                {pageSizeOptions.map((option) => (
+                                    <option key={option} value={option}>
+                                        {option}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -449,7 +486,8 @@ const UserManagementDashboard = () => {
             <div className="px-4 pb-6">
                 <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
                     {/* Table Header */}
-                    <div className="bg-gray-100 px-6 py-4">
+                    <div className="overflow-x-auto">
+                    <div className="bg-gray-100 px-6 py-4 min-w-[1120px]">
                         <div className="grid grid-cols-15 gap-4 text-sm font-semibold text-gray-700">
                             <div className="col-span-2">Name</div>
                             <div className="col-span-3">Email</div>
@@ -464,7 +502,7 @@ const UserManagementDashboard = () => {
                     </div>
 
                     {/* Table Body */}
-                    <div className="divide-y divide-gray-200">
+                    <div className="divide-y divide-gray-200 min-w-[1120px]">
                         {currentUsers.length > 0 ? (
                             currentUsers.map((user) => (
                                 <div key={user.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
@@ -544,49 +582,87 @@ const UserManagementDashboard = () => {
                                 </div>
                             ))
                         ) : (
-                            <div className="px-6 py-12 text-center text-gray-500">
-                                No users found matching your criteria
+                            <div className="px-6 py-12 text-center">
+                                <div className="mx-auto max-w-md">
+                                    <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
+                                        <Search className="h-5 w-5 text-gray-400" />
+                                    </div>
+                                    <h3 className="text-base font-semibold text-gray-900">No users found</h3>
+                                    <p className="mt-2 text-sm text-gray-500">
+                                        Try adjusting your search terms, changing the role filter, or increasing the page size.
+                                    </p>
+                                </div>
                             </div>
                         )}
                     </div>
+                    </div>
 
                     {/* Pagination */}
-                    {totalPages > 1 && (
-                        <div className="bg-gray-50 px-6 py-4 flex items-center justify-center">
-                            <div className="flex items-center gap-2">
-                                <button
-                                    className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50"
-                                    disabled={currentPage === 1}
-                                    onClick={() => handlePageChange(currentPage - 1)}
-                                >
-                                    <ChevronLeft className="w-4 h-4" />
-                                </button>
+                    {filteredUsers.length > 0 && (
+                        <div className="border-t border-gray-100 bg-gradient-to-r from-gray-50 to-white px-6 py-4">
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                                <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                                    <span className="rounded-full bg-white px-3 py-1.5 border border-gray-200 shadow-sm">
+                                        Page <span className="font-semibold text-gray-900">{currentPage}</span> of <span className="font-semibold text-gray-900">{totalPages}</span>
+                                    </span>
+                                    <span className="rounded-full bg-white px-3 py-1.5 border border-gray-200 shadow-sm">
+                                        Viewing <span className="font-semibold text-gray-900">{safeStart}-{safeEnd}</span>
+                                    </span>
+                                </div>
 
-                                {getPageNumbers().map((pageNum, index) => (
-                                    <React.Fragment key={index}>
-                                        {pageNum === '...' ? (
-                                            <span className="px-2 text-gray-500">...</span>
-                                        ) : (
-                                            <button
-                                                onClick={() => handlePageChange(pageNum as number)}
-                                                className={`px-3 py-1 rounded-md text-sm ${currentPage === pageNum
-                                                    ? 'bg-blue-500 text-white'
-                                                    : 'text-gray-600 hover:bg-gray-100'
-                                                    }`}
-                                            >
-                                                {pageNum}
-                                            </button>
-                                        )}
-                                    </React.Fragment>
-                                ))}
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <button
+                                        className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 shadow-sm transition hover:border-indigo-200 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                        disabled={currentPage === 1}
+                                        onClick={() => handlePageChange(1)}
+                                    >
+                                        First
+                                    </button>
+                                    <button
+                                        className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 shadow-sm transition hover:border-indigo-200 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                        disabled={currentPage === 1}
+                                        onClick={() => handlePageChange(currentPage - 1)}
+                                    >
+                                        <ChevronLeft className="w-4 h-4" />
+                                        Prev
+                                    </button>
 
-                                <button
-                                    className="p-2 text-gray-600 hover:text-gray-800 disabled:opacity-50"
-                                    disabled={currentPage === totalPages}
-                                    onClick={() => handlePageChange(currentPage + 1)}
-                                >
-                                    <ChevronRight className="w-4 h-4" />
-                                </button>
+                                    <div className="flex items-center gap-2 rounded-2xl bg-white p-1 shadow-sm border border-gray-200">
+                                        {getPageNumbers().map((pageNum, index) => (
+                                            <React.Fragment key={index}>
+                                                {pageNum === '...' ? (
+                                                    <span className="px-2 text-sm text-gray-400">...</span>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => handlePageChange(pageNum as number)}
+                                                        className={`min-w-10 rounded-xl px-3 py-2 text-sm font-medium transition ${currentPage === pageNum
+                                                            ? 'bg-indigo-900 text-white shadow-sm'
+                                                            : 'text-gray-600 hover:bg-indigo-50 hover:text-indigo-700'
+                                                            }`}
+                                                    >
+                                                        {pageNum}
+                                                    </button>
+                                                )}
+                                            </React.Fragment>
+                                        ))}
+                                    </div>
+
+                                    <button
+                                        className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 shadow-sm transition hover:border-indigo-200 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                        disabled={currentPage === totalPages}
+                                        onClick={() => handlePageChange(currentPage + 1)}
+                                    >
+                                        Next
+                                        <ChevronRight className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 shadow-sm transition hover:border-indigo-200 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                        disabled={currentPage === totalPages}
+                                        onClick={() => handlePageChange(totalPages)}
+                                    >
+                                        Last
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     )}
