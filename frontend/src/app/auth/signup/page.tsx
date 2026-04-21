@@ -102,7 +102,7 @@ export default function SignUpPage() {
                         </Link>
                     </div>
                     <Image
-                        src="/images/mining.png"
+                        src="/images/mine.jpeg"
                         alt="Construction worker"
                         fill
                         className="object-cover"
@@ -117,10 +117,10 @@ export default function SignUpPage() {
                             {/* Header */}
                             <div className="text-center mb-12">
                                 <h1 className="text-5xl md:text-6xl font-bold text-gray-800 mb-4">
-                                    Welcome Back
+                                    Create Account
                                 </h1>
                                 <p className="text-gray-500 text-2xl">
-                                    Create your account
+                                    Join us today
                                 </p>
                             </div>
 

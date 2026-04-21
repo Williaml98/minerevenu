@@ -52,6 +52,7 @@ const items = [
 export default function Sidebar() {
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const pathname = usePathname();
+    const currentPath = pathname ?? "";
     const router = useRouter();
     const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
 
@@ -102,6 +103,14 @@ export default function Sidebar() {
         );
     };
 
+    const isActiveLink = (url: string) => {
+        if (url === "/stakeholder") {
+            return currentPath === url;
+        }
+
+        return currentPath === url || currentPath.startsWith(`${url}/`);
+    };
+
     return (
         <div className="w-[280px] z-[1000] h-screen fixed">
             <button
@@ -141,7 +150,7 @@ export default function Sidebar() {
                                 <li key={item.title}>
                                     <Link
                                         href={item.url}
-                                        className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${pathname === item.url || pathname.startsWith(`${item.url}/`)
+                                        className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${isActiveLink(item.url)
                                             ? 'bg-blue-400 text-white'
                                             : 'text-gray-600 hover:bg-gray-200'
                                             }`}

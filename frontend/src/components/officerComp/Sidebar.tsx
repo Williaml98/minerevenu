@@ -108,6 +108,14 @@ export default function Sidebar() {
         );
     };
 
+    const isActiveLink = (url: string) => {
+        if (url === "/officer") {
+            return currentPath === url;
+        }
+
+        return currentPath === url || currentPath.startsWith(`${url}/`);
+    };
+
     return (
         <div className="w-[280px] z-[1000] h-screen fixed">
             <button
@@ -147,7 +155,7 @@ export default function Sidebar() {
                                 <li key={item.title}>
                                     <Link
                                         href={item.url}
-                                        className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${currentPath === item.url || currentPath.startsWith(`${item.url}/`)
+                                        className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${isActiveLink(item.url)
                                             ? 'bg-blue-400 text-white'
                                             : 'text-gray-600 hover:bg-gray-200'
                                             }`}
