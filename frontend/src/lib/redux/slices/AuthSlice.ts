@@ -31,7 +31,7 @@ const authApi = apiSlice.injectEndpoints({
         updateProfile: builder.mutation({
             query: (data) => ({
                 url: "auth/update-profile/",
-                method: "PUT",
+                method: "PATCH",
                 body: data,
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('access')}`,

@@ -42,6 +42,11 @@ export interface CommunicationUser {
     email: string;
 }
 
+export interface UnreadMessagesResponse {
+    count: number;
+    messages: CommunicationMessage[];
+}
+
 export const communicationSlice = apiSlice.injectEndpoints({
     endpoints: (builder) => ({
         getAllMessages: builder.query<CommunicationMessage[], unknown>({
@@ -49,12 +54,21 @@ export const communicationSlice = apiSlice.injectEndpoints({
                 url: "communications/",
                 method: "GET",
             }),
+            providesTags: ["Communications"],
         }),
         getCommunicationUsers: builder.query<CommunicationUser[], unknown>({
             query: () => ({
                 url: "communications/users/",
                 method: "GET",
             }),
+            providesTags: ["Communications"],
+        }),
+        getUnreadMessages: builder.query<UnreadMessagesResponse, void>({
+            query: () => ({
+                url: "communications/unread/",
+                method: "GET",
+            }),
+            providesTags: ["Communications"],
         }),
         sendMessage: builder.mutation<CommunicationMessage, SendMessagePayload>({
             query: (message) => ({
@@ -62,6 +76,25 @@ export const communicationSlice = apiSlice.injectEndpoints({
                 method: "POST",
                 body: message,
             }),
+            invalidatesTags: ["Communications"],
+        }),
+        markMessageAsRead: builder.mutation<{ message: string }, number>({
+            query: (messageId) => ({
+                url: `communications/${messageId}/mark_read/`,
+                method: "POST",
+            }),
+            invalidatesTags: ["Communications"],
+        }),
+        markMultipleMessagesAsRead: builder.mutation<
+            { message: string; updated_count: number },
+            number[]
+        >({
+            query: (messageIds) => ({
+                url: "communications/mark_multiple_read/",
+                method: "POST",
+                body: { message_ids: messageIds },
+            }),
+            invalidatesTags: ["Communications"],
         }),
     }),
 });
@@ -69,5 +102,8 @@ export const communicationSlice = apiSlice.injectEndpoints({
 export const {
     useGetAllMessagesQuery,
     useGetCommunicationUsersQuery,
-    useSendMessageMutation
+    useGetUnreadMessagesQuery,
+    useSendMessageMutation,
+    useMarkMessageAsReadMutation,
+    useMarkMultipleMessagesAsReadMutation,
 } = communicationSlice;

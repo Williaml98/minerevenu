@@ -170,28 +170,30 @@ export default function SignInPage() {
                                     >
                                         Password
                                     </label>
-                                    <input
-                                        id="password"
-                                        name="password"
-                                        type={showPassword ? "text" : "password"}
-                                        autoComplete="current-password"
-                                        required
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        placeholder="********"
-                                        className="w-full px-6 py-5 text-lg border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-700 placeholder-gray-400"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute inset-y-0 right-0 flex items-center pr-4 text-gray-400 hover:text-gray-300"
-                                    >
-                                        {showPassword ? (
-                                            <EyeOff className="h-6 w-6" aria-hidden="true" />
-                                        ) : (
-                                            <Eye className="h-6 w-6" aria-hidden="true" />
-                                        )}
-                                    </button>
+                                    <div className="relative">  {/* ← wrap input + button */}
+                                        <input
+                                            id="password"
+                                            name="password"
+                                            type={showPassword ? "text" : "password"}
+                                            autoComplete="current-password"
+                                            required
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            placeholder="********"
+                                            className="w-full px-6 py-5 text-lg border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-700 placeholder-gray-400"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            className="absolute inset-y-0 right-0 flex items-center pr-4 text-gray-400 hover:text-gray-300"
+                                        >
+                                            {showPassword ? (
+                                                <EyeOff className="h-6 w-6" aria-hidden="true" />
+                                            ) : (
+                                                <Eye className="h-6 w-6" aria-hidden="true" />
+                                            )}
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {/* Sign In Button */}
