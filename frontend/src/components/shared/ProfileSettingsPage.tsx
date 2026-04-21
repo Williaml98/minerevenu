@@ -300,9 +300,6 @@ export default function ProfileSettingsPage({
                                 <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
                                     Profile settings
                                 </h1>
-                                <p className="max-w-2xl text-sm leading-6 text-slate-200 md:text-base">
-                                    Keep account details current, update your profile image, and manage password access from one clean workspace.
-                                </p>
                             </div>
                         </div>
 
