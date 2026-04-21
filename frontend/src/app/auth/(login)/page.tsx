@@ -122,7 +122,7 @@ export default function SignInPage() {
                         </Link>
                     </div>
                     <Image
-                        src="/images/mining.png"
+                        src="/images/mine.jpeg"
                         alt="Construction worker"
                         fill
                         className="object-cover"
