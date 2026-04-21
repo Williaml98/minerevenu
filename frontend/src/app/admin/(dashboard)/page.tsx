@@ -177,6 +177,13 @@ const formatNumber = (value: number): string => {
     }).format(value);
 };
 
+const formatDecimalValue = (value: number): string => {
+    return new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 3
+    }).format(value);
+};
+
 // ==================== Component ====================
 
 export default function AdminDashboard() {
@@ -366,7 +373,7 @@ export default function AdminDashboard() {
             id: '3',
             type: 'success',
             icon: 'TREND',
-            message: `AI forecast predicts ${dashboardData.forecastAccuracy}% accuracy for next quarter`,
+            message: `AI forecast predicts ${formatDecimalValue(dashboardData.forecastAccuracy)}% accuracy for next quarter`,
             time: new Date().toLocaleTimeString(),
             category: 'AI Insights',
             read: false
@@ -591,7 +598,7 @@ export default function AdminDashboard() {
                     />
                     <StatCard
                         title="AI Forecast"
-                        value={`${dashboardData.forecastAccuracy}%`}
+                        value={`${formatDecimalValue(dashboardData.forecastAccuracy)}%`}
                         icon={TrendingUp}
                         gradient="bg-gradient-to-br from-purple-500 to-purple-600"
                         change={{ value: '+2.4%', positive: true }}

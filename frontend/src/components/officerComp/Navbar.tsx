@@ -13,7 +13,7 @@ interface NavbarProps {
 const Navbar = ({ onSearch }: NavbarProps) => {
     const { data: sessionData } = useSession()
     const [showUserDropdown, setShowUserDropdown] = useState(false);
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery,] = useState('');
     const [getMyDetails, { data: userDetails, isLoading, error }] = useGetMyDetailsMutation();
 
     // Debounce search input
@@ -25,9 +25,9 @@ const Navbar = ({ onSearch }: NavbarProps) => {
         return () => clearTimeout(timer);
     }, [searchQuery, onSearch]);
 
-    const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setSearchQuery(e.target.value);
-    };
+    // const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    //     setSearchQuery(e.target.value);
+    // };
 
     useEffect(() => {
         getMyDetails({});
@@ -84,7 +84,7 @@ const Navbar = ({ onSearch }: NavbarProps) => {
     return (
         <div className='sticky top-0 z-[90] w-full overflow-visible border-b border-slate-800/70 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(30,41,59,0.94))] px-4 py-4 text-white shadow-[0_18px_45px_rgba(15,23,42,0.22)] backdrop-blur'>
             <div className='flex w-full flex-row items-center justify-between gap-4'>
-            <div className='flex-1 max-w-lg'>
+            {/* <div className='flex-1 max-w-lg'>
                 <div className='flex w-full flex-row items-center rounded-2xl border border-white/10 bg-white/10 p-2 shadow-inner backdrop-blur-sm'>
                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M17 17L12.3333 12.3333M13.8889 8.44444C13.8889 11.4513 11.4513 13.8889 8.44444 13.8889C5.43756 13.8889 3 11.4513 3 8.44444C3 5.43756 5.43756 3 8.44444 3C11.4513 3 13.8889 5.43756 13.8889 8.44444Z" stroke="#CBD5E1" strokeWidth="1.67" strokeLinecap="round" strokeLinejoin="round" />
@@ -97,7 +97,7 @@ const Navbar = ({ onSearch }: NavbarProps) => {
                         onChange={handleSearchChange}
                     />
                 </div>
-            </div>
+            </div> */}
 
             <div className='flex flex-row gap-4 items-center'>
                 <NotificationCenter role="Officer" />
