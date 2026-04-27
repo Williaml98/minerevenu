@@ -1,66 +1,59 @@
-'use client';
-import React from 'react';
-import { ImpactItem } from '@/types';
+"use client";
+import React from "react";
+import { CheckCircle2 } from "lucide-react";
 
-const ImpactSection: React.FC = () => {
-    const impacts: ImpactItem[] = [
-        {
-            title: "Accurate real-time updates",
-            description: "Eliminate revenue delays with instant data synchronization"
-        },
-        {
-            title: "Transparency in allocation",
-            description: "Build trust with stakeholders through clear revenue distribution"
-        },
-        {
-            title: "Predictive insights",
-            description: "Reduce risks of mismanagement with AI-powered forecasting"
-        },
-        {
-            title: "Better decisions",
-            description: "Make data-driven strategies with comprehensive analytics"
-        },
-        {
-            title: "Compliance-ready",
-            description: "Seamless government reporting with automated compliance tools"
-        }
-    ];
+const impacts = [
+    { title: "Accurate real-time updates", description: "Eliminate revenue delays with instant data synchronization across all mining sites." },
+    { title: "Transparency in allocation", description: "Build trust with stakeholders through clear, auditable revenue distribution tracking." },
+    { title: "Predictive insights", description: "Reduce risks of mismanagement with AI-powered revenue forecasting models." },
+    { title: "Better decisions", description: "Make data-driven strategies with comprehensive analytics and historical trends." },
+    { title: "Compliance-ready", description: "Seamless government reporting with automated compliance tools and audit trails." },
+    { title: "Multi-role access", description: "Every stakeholder gets the right view — Admin, Officer, or Executive dashboard." },
+];
 
-    return (
-        <section className="py-20 bg-white">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="text-center mb-16">
-                    <h2 className="text-4xl md:text-5xl font-bold text-slate-900 mb-6">
-                        Expected Impact
-                    </h2>
-                    <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-                        Transform your mining revenue management with measurable results
-                        and tangible benefits for all stakeholders.
-                    </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {impacts.map((impact, index) => (
-                        <div key={index} className="flex items-start space-x-4 p-6 rounded-lg hover:bg-slate-50 transition-all duration-300">
-                            <div className="flex-shrink-0">
-                                <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                                    <span className="text-white font-bold text-lg">✓</span>
-                                </div>
-                            </div>
-                            <div>
-                                <h3 className="text-xl font-bold text-slate-900 mb-2">
-                                    {impact.title}
-                                </h3>
-                                <p className="text-slate-600 leading-relaxed">
-                                    {impact.description}
-                                </p>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+const ImpactSection: React.FC = () => (
+    <section className="py-24" style={{ background: "var(--bg-surface)" }}>
+        <div className="max-w-7xl mx-auto px-6">
+            <div className="text-center mb-16">
+                <span
+                    className="inline-block text-xs font-semibold uppercase tracking-widest px-3 py-1 rounded-full mb-4"
+                    style={{ background: "rgba(245,158,11,0.1)", color: "#fbbf24", border: "1px solid rgba(245,158,11,0.2)" }}
+                >
+                    Why MineRevenue
+                </span>
+                <h2 className="text-4xl md:text-5xl font-bold mb-5" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+                    Measurable Impact
+                </h2>
+                <p className="text-lg max-w-2xl mx-auto" style={{ color: "var(--text-secondary)" }}>
+                    Transform mining revenue management with tangible benefits for every stakeholder in the value chain.
+                </p>
             </div>
-        </section>
-    );
-};
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {impacts.map((item, i) => (
+                    <div
+                        key={item.title}
+                        className={`flex items-start gap-4 p-5 rounded-2xl animate-slide-up stagger-${Math.min(i + 1, 6)} transition-all`}
+                        style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)" }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(16,185,129,0.3)"; (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)"; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "var(--card-border)"; (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)"; }}
+                    >
+                        <div className="flex-shrink-0 mt-0.5">
+                            <CheckCircle2 size={20} style={{ color: "#10b981" }} />
+                        </div>
+                        <div>
+                            <h3 className="text-base font-semibold mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+                                {item.title}
+                            </h3>
+                            <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                                {item.description}
+                            </p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    </section>
+);
 
 export default ImpactSection;

@@ -1,12 +1,9 @@
 "use client";
-import { Inter } from "next/font/google";
 import { SessionProvider } from "next-auth/react";
 import "./globals.css";
 import { Provider } from "react-redux";
 import { store } from "@/lib/redux/store";
 import { Toaster } from "sonner";
-
-const inter = Inter({ subsets: ["latin"] });
 
 export default function RootLayout({
   children,
@@ -16,15 +13,27 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <title>Mining Revenue Tracking</title>
-        <meta name="description" content="Mining Revenue Tracking System" />
+        <title>MineRevenue — AI-Powered Revenue Forecasting</title>
+        <meta name="description" content="Intelligent mining revenue tracking and AI-powered forecasting system" />
         <link rel="icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" href="/login.jpg" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* Theme init — runs before paint to prevent flash */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('theme')||( window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark')document.documentElement.classList.add('dark');else document.documentElement.classList.remove('dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');document.documentElement.classList.add('dark');}})();`,
+          }}
+        />
       </head>
-      <body className={`${inter.className} antialiased min-h-screen flex flex-col`}>
+      <body className="antialiased min-h-screen flex flex-col">
         <SessionProvider>
           <Provider store={store}>
-            <Toaster position={`top-right`} />
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                style: { fontFamily: "var(--font-body, 'Plus Jakarta Sans', system-ui, sans-serif)" },
+              }}
+            />
             <main className="flex-grow">{children}</main>
           </Provider>
         </SessionProvider>

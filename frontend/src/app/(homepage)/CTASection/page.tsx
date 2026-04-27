@@ -1,32 +1,64 @@
-'use client';
-import React from 'react';
+"use client";
+import React from "react";
+import Link from "next/link";
+import { ArrowRight, Sparkles } from "lucide-react";
 
-const CTASection: React.FC = () => {
+const CTASection: React.FC = () => (
+    <section className="py-24 relative overflow-hidden" style={{ background: "linear-gradient(135deg,#030d1f 0%,#0a1628 50%,#091228 100%)" }}>
+        {/* Grid */}
+        <div
+            className="absolute inset-0"
+            style={{
+                backgroundImage: "linear-gradient(rgba(59,130,246,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,0.05) 1px,transparent 1px)",
+                backgroundSize: "48px 48px",
+            }}
+        />
+        {/* Glow */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-64" style={{ background: "radial-gradient(ellipse, rgba(37,99,235,0.2) 0%, transparent 70%)" }} />
 
-    return (
+        <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
+            <span
+                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-6 text-xs font-semibold uppercase tracking-widest"
+                style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.25)", color: "#fbbf24" }}
+            >
+                <Sparkles size={12} /> Get started today
+            </span>
+            <h2
+                className="text-4xl md:text-6xl font-bold text-white mb-6 leading-tight"
+                style={{ fontFamily: "var(--font-display)" }}
+            >
+                Start Tracking Mining
+                <br />
+                <span style={{ background: "linear-gradient(135deg,#f59e0b,#ef4444)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
+                    Revenue Today
+                </span>
+            </h2>
+            <p className="text-lg mb-10 max-w-2xl mx-auto leading-relaxed" style={{ color: "#7c8fac" }}>
+                Join mining operations, government bodies, and financial institutions already using MineRevenue to bring full transparency to mining revenues.
+            </p>
 
-        <section className="py-20 bg-gradient-to-r from-amber-600 to-yellow-500">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-                <h2 className="text-4xl md:text-5xl font-bold text-slate-900 mb-6">
-                    Start Tracking Mining Revenues Today
-                </h2>
-                <p className="text-xl text-slate-800 mb-12 max-w-3xl mx-auto">
-                    Join the revolution in mining revenue transparency. Get started with
-                    our AI-powered platform in minutes.
-                </p>
-
-                <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
-                    <button className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 px-8 rounded-lg text-lg transition-all duration-300 transform hover:scale-105 shadow-xl">
-                        Sign Up Now
-                    </button>
-                    <button className="border-2 border-slate-900 text-slate-900 hover:bg-slate-900 hover:text-white font-semibold py-4 px-8 rounded-lg text-lg transition-all duration-300">
-                        Contact Us
-                    </button>
-                </div>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <Link
+                    href="/auth"
+                    className="inline-flex items-center gap-2.5 px-8 py-4 rounded-2xl text-base font-semibold text-white transition-all"
+                    style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 8px 32px rgba(37,99,235,0.4)" }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.transform = "translateY(-2px)"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.transform = "translateY(0)"; }}
+                >
+                    Sign up free <ArrowRight size={17} />
+                </Link>
+                <a
+                    href="#features"
+                    className="inline-flex items-center px-6 py-4 rounded-2xl text-base font-medium transition-all"
+                    style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "#cbd5e1" }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(255,255,255,0.10)"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(255,255,255,0.06)"; }}
+                >
+                    Learn more
+                </a>
             </div>
-
-        </section>
-    );
-};
+        </div>
+    </section>
+);
 
 export default CTASection;
