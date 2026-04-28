@@ -696,7 +696,7 @@ export default function ReportCenter() {
             : [];
 
     return (
-        <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(15,118,110,0.08),_transparent_24%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_48%,#f8fafc_100%)] px-4 py-6 md:px-6">
+        <div className="min-h-screen px-4 py-6 md:px-6" style={{ background: "var(--bg-base)" }}>
             <div className="mx-auto max-w-[1550px] space-y-6">
 
                 <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

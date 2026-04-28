@@ -1,7 +1,7 @@
 {
   "anomaly": {
     "data_points": 15,
-    "last_trained": "2026-03-16T12:00:05.348920Z",
+    "last_trained": "2026-04-27T21:05:31.079860Z",
     "metrics": {
       "f1": 0.36,
       "precision": 0.7714285714285715,
@@ -12,7 +12,7 @@
   },
   "forecast": {
     "data_points": 6,
-    "last_trained": "2026-03-16T12:00:04.970559Z",
+    "last_trained": "2026-04-27T21:05:30.598596Z",
     "metrics": {
       "mae": 11001922.156866442,
       "rmse": 11054074.260463629

@@ -10,10 +10,10 @@ export default function RootLayout({
 
     return (
         <SessionProvider>
-            <div className="flex flex-row w-full min-h-screen lg:w-[90%] bg-none">
+            <div className="flex flex-row w-full min-h-screen">
                 <AdminSideBar />
-                <div className="flex flex-col ml-auto w-full lg:w-[78%]">
-                    <Navbar onSearch={() => { /* handle search here */ }} />
+                <div className="flex flex-col ml-auto w-full md:w-[calc(100%-260px)]">
+                    <Navbar onSearch={() => { }} />
                     {children}
                 </div>
             </div>

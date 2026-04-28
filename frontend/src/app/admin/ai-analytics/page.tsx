@@ -141,7 +141,28 @@ export function AIAnalyticsDashboard({
             ? "N/A"
             : `${formattedForecastAccuracy}%`;
 
-    const stabilityScore = summaryData?.summary.stability_score;
+    const rawStabilityScore = summaryData?.summary.stability_score;
+
+    // Compute stability from sales CoV when the backend hasn't trained a model yet
+    const computedStabilityScore = useMemo(() => {
+        if (rawStabilityScore != null) return rawStabilityScore;
+        const relevantSales = salesData.filter((s) => {
+            if (selectedMineId && s.mine !== selectedMineId) return false;
+            const d = new Date(s.date);
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - 90);
+            return d >= cutoff;
+        });
+        if (relevantSales.length < 3) return null;
+        const amounts = relevantSales.map((s) => s.total_amount);
+        const mean = amounts.reduce((a, b) => a + b, 0) / amounts.length;
+        if (mean === 0) return null;
+        const variance = amounts.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / amounts.length;
+        const cv = Math.sqrt(variance) / mean; // coefficient of variation
+        return Math.min(100, Math.max(0, Math.round(100 - cv * 100)));
+    }, [rawStabilityScore, salesData, selectedMineId]);
+
+    const stabilityScore = computedStabilityScore;
     const anomalyCount = summaryData?.summary.anomaly_count ?? 0;
 
     const forecastSeries = useMemo(() => {
@@ -550,10 +571,20 @@ export function AIAnalyticsDashboard({
                                 className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
                                     stabilityScore == null
                                         ? "bg-amber-100 text-amber-700"
-                                        : "bg-green-100 text-green-700"
+                                        : stabilityScore >= 70
+                                        ? "bg-green-100 text-green-700"
+                                        : stabilityScore >= 40
+                                        ? "bg-amber-100 text-amber-700"
+                                        : "bg-red-100 text-red-700"
                                 }`}
                             >
-                                {stabilityScore == null ? "Insufficient data" : "Stable"}
+                                {stabilityScore == null
+                                    ? "Insufficient data"
+                                    : stabilityScore >= 70
+                                    ? "Stable"
+                                    : stabilityScore >= 40
+                                    ? "Moderate"
+                                    : "Volatile"}
                             </span>
                         </div>
                     </div>

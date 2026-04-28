@@ -1,213 +1,178 @@
-"use client"
-import { useSession } from 'next-auth/react'
-import Image from 'next/image'
-import React, { useState, useEffect } from 'react'
+"use client";
+import { useSession } from "next-auth/react";
+import Image from "next/image";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useGetMyDetailsMutation } from "@/lib/redux/slices/AuthSlice";
 import NotificationCenter from "@/components/shared/NotificationCenter";
-
+import ThemeToggle from "@/components/shared/ThemeToggle";
+import { RefreshCw, Settings, User } from "lucide-react";
+import Link from "next/link";
 
 interface NavbarProps {
     onSearch: (query: string) => void;
 }
 
-const Navbar = ({ onSearch }: NavbarProps) => {
-    const { data: sessionData } = useSession()
-    const [showUserDropdown, setShowUserDropdown] = useState(false);
-    const [searchQuery, ] = useState('');
+export default function Navbar({ onSearch }: NavbarProps) {
+    const { data: sessionData } = useSession();
+    const [showDropdown, setShowDropdown] = useState(false);
+    const [dropdownPos, setDropdownPos] = useState({ top: 0, right: 0 });
     const [getMyDetails, { data: userDetails, isLoading, error }] = useGetMyDetailsMutation();
+    const triggerRef = useRef<HTMLButtonElement>(null);
 
-    // Debounce search input
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            onSearch(searchQuery);
-        }, 300);
-
-        return () => clearTimeout(timer);
-    }, [searchQuery, onSearch]);
-
-    // const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    //     setSearchQuery(e.target.value);
-    // };
-
-    useEffect(() => {
-        getMyDetails({});
-    }, [getMyDetails]);
+    const stableOnSearch = useCallback(onSearch, []); // eslint-disable-line
+    useEffect(() => { stableOnSearch(""); }, [stableOnSearch]);
+    useEffect(() => { getMyDetails({}); }, [getMyDetails]);
 
     const getProfileImageUrl = () => {
-        if (userDetails?.profile_picture) {
-            if (userDetails.profile_picture.startsWith('/media/')) {
-                return `http://127.0.0.1:8000${userDetails.profile_picture}`;
-            }
-            if (userDetails.profile_picture.startsWith('http')) {
-                return userDetails.profile_picture;
-            }
-            return userDetails.profile_picture.startsWith('/') ? userDetails.profile_picture : `/${userDetails.profile_picture}`;
-        }
-        return "/profile.jpg";
+        if (!userDetails?.profile_picture) return "/profile.jpg";
+        if (userDetails.profile_picture.startsWith("/media/")) return `http://127.0.0.1:8000${userDetails.profile_picture}`;
+        if (userDetails.profile_picture.startsWith("http")) return userDetails.profile_picture;
+        return userDetails.profile_picture.startsWith("/") ? userDetails.profile_picture : `/${userDetails.profile_picture}`;
     };
 
-    const getUserInitials = () => {
-        if (userDetails?.username) {
-            const names = userDetails.username.split(' ');
-            if (names.length >= 2) {
-                return `${names[0][0]}${names[1][0]}`.toUpperCase();
-            }
-            return userDetails.username.substring(0, 2).toUpperCase();
-        }
-        return "K.F";
+    const getInitials = () => {
+        if (!userDetails?.username) return "SH";
+        const parts = userDetails.username.trim().split(" ");
+        return parts.length >= 2 ? `${parts[0][0]}${parts[1][0]}`.toUpperCase() : userDetails.username.substring(0, 2).toUpperCase();
     };
 
-    const handleProfileClick = () => {
-        setShowUserDropdown(!showUserDropdown);
-        if (!showUserDropdown) {
-            getMyDetails({});
+    const openDropdown = () => {
+        if (triggerRef.current) {
+            const rect = triggerRef.current.getBoundingClientRect();
+            setDropdownPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
         }
+        setShowDropdown((p) => !p);
+        if (!showDropdown) getMyDetails({});
     };
 
     useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            const target = event.target as HTMLElement;
-            if (!target.closest('.user-dropdown-container')) {
-                setShowUserDropdown(false);
-            }
+        if (!showDropdown) return;
+        const handler = (e: MouseEvent) => {
+            const t = e.target as HTMLElement;
+            if (!t.closest(".profile-trigger") && !t.closest(".profile-panel")) setShowDropdown(false);
         };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, [showDropdown]);
 
-        if (showUserDropdown) {
-            document.addEventListener('mousedown', handleClickOutside);
-        }
-
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, [showUserDropdown]);
+    void sessionData;
 
     return (
-        <div className='sticky top-0 z-[90] w-full overflow-visible border-b border-slate-800/70 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(30,41,59,0.94))] px-4 py-4 text-white shadow-[0_18px_45px_rgba(15,23,42,0.22)] backdrop-blur'>
-            <div className='flex w-full flex-row items-center justify-between gap-4'>
-            <div className='flex flex-row gap-4 items-center'>
-                <NotificationCenter role="Stakeholder" />
+        <header
+            className="sticky top-0 z-[90] w-full"
+            style={{
+                background: "var(--navbar-bg)",
+                borderBottom: "1px solid var(--navbar-border)",
+                boxShadow: "0 4px 24px rgba(0,0,0,0.18)",
+            }}
+        >
+            <div className="flex items-center justify-between px-5 py-3 gap-4">
+                <div className="flex items-center gap-2">
+                    <span className="text-[11px] uppercase tracking-widest font-semibold" style={{ color: "#a78bfa" }}>
+                        Stakeholder
+                    </span>
+                    <span style={{ color: "rgba(255,255,255,0.15)" }}>·</span>
+                    <span className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.55)" }}>
+                        Executive Overview
+                    </span>
+                </div>
 
-                <div className='relative user-dropdown-container'>
-                    <div
-                        className='flex items-center justify-center overflow-hidden cursor-pointer rounded-full bg-indigo-900 text-white w-10 h-10'
-                        onClick={handleProfileClick}
+                <div className="flex items-center gap-3">
+                    <ThemeToggle />
+                    <NotificationCenter role="Stakeholder" />
+
+                    <button
+                        ref={triggerRef}
+                        onClick={openDropdown}
+                        className="profile-trigger flex items-center justify-center w-10 h-10 rounded-full overflow-hidden cursor-pointer transition-all hover:ring-2 hover:ring-purple-500/40"
+                        style={{ background: "linear-gradient(135deg,#3b1f6e,#7c3aed)", border: "1.5px solid rgba(255,255,255,0.12)" }}
+                        aria-label="Profile menu"
                     >
-                        {userDetails ? (
-                            userDetails.profile_picture ? (
-                                <Image
-                                    src={getProfileImageUrl()}
-                                    alt={`${userDetails.username}'s profile`}
-                                    className='object-cover w-full h-full rounded-full'
-                                    width={48}
-                                    height={48}
-                                    onError={(e) => {
-                                        const target = e.target as HTMLImageElement;
-                                        target.src = "/profile.jpg";
-                                    }}
-                                />
-                            ) : (
-                                <div className="flex items-center justify-center h-full w-full text-white font-semibold">
-                                    {getUserInitials()}
-                                </div>
-                            )
-                        ) : sessionData?.user ? (
-                            <Image
-                                src={sessionData?.user?.image || '/profile.jpg'}
-                                alt='profile'
-                                width={40}
-                                height={40}
-                                className='object-cover'
-                            />
+                        {userDetails?.profile_picture ? (
+                            <Image src={getProfileImageUrl()} alt="Profile" width={40} height={40} className="object-cover w-full h-full"
+                                onError={(e) => { (e.target as HTMLImageElement).src = "/profile.jpg"; }} />
                         ) : (
-                            <div className="flex items-center justify-center h-full w-full text-white font-semibold">
-                                T.M
-                            </div>
+                            <span className="text-sm font-semibold text-white">{getInitials()}</span>
                         )}
-                    </div>
+                    </button>
+                </div>
+            </div>
 
-                    {showUserDropdown && (
-                        <div className="absolute right-0 top-12 z-[120] min-w-[280px] rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl">
-                            {isLoading ? (
-                                <div className="flex items-center justify-center py-4">
-                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-900"></div>
-                                    <span className="ml-2 text-sm text-gray-500">Loading...</span>
+            {showDropdown && (
+                <div
+                    className="profile-panel fixed animate-slide-down"
+                    style={{
+                        top: dropdownPos.top,
+                        right: dropdownPos.right,
+                        zIndex: 9999,
+                        width: 280,
+                        background: "var(--card-bg)",
+                        border: "1px solid var(--card-border)",
+                        borderRadius: 20,
+                        boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
+                        overflow: "hidden",
+                    }}
+                >
+                    {isLoading ? (
+                        <div className="flex items-center justify-center gap-2 py-6">
+                            <RefreshCw size={16} className="animate-spin" style={{ color: "#a78bfa" }} />
+                            <span className="text-sm" style={{ color: "var(--text-secondary)" }}>Loading…</span>
+                        </div>
+                    ) : error ? (
+                        <div className="text-center py-6 px-4">
+                            <p className="text-sm" style={{ color: "var(--status-danger)" }}>Failed to load profile</p>
+                            <button onClick={() => getMyDetails({})} className="mt-2 text-sm underline" style={{ color: "var(--accent)" }}>Retry</button>
+                        </div>
+                    ) : userDetails ? (
+                        <>
+                            <div
+                                className="flex items-center gap-3 px-4 py-4"
+                                style={{ background: "linear-gradient(135deg,rgba(124,58,237,0.15),rgba(236,72,153,0.1))", borderBottom: "1px solid var(--card-border)" }}
+                            >
+                                <div className="flex items-center justify-center w-12 h-12 rounded-2xl overflow-hidden flex-shrink-0" style={{ background: "linear-gradient(135deg,#3b1f6e,#7c3aed)" }}>
+                                    {userDetails.profile_picture ? (
+                                        <Image src={getProfileImageUrl()} alt="Profile" width={48} height={48} className="object-cover w-full h-full" />
+                                    ) : (
+                                        <span className="text-lg font-bold text-white">{getInitials()}</span>
+                                    )}
                                 </div>
-                            ) : error ? (
-                                <div className="text-center py-4">
-                                    <p className="text-red-500 text-sm mb-2">Failed to load user details</p>
-                                    <button
-                                        onClick={() => getMyDetails({})}
-                                        className="text-indigo-900 text-sm hover:underline"
-                                    >
-                                        Retry
-                                    </button>
+                                <div className="min-w-0">
+                                    <p className="font-semibold text-sm truncate" style={{ color: "var(--text-primary)" }}>{userDetails.username}</p>
+                                    <p className="text-xs truncate" style={{ color: "var(--text-secondary)" }}>{userDetails.email}</p>
+                                    <span className="inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wide" style={{ background: "rgba(124,58,237,0.15)", color: "#a78bfa" }}>
+                                        {userDetails.role}
+                                    </span>
                                 </div>
-                            ) : userDetails ? (
-                                <div className="space-y-3">
-                                    <div className="flex items-center gap-3 pb-3 border-b border-gray-100">
-                                        <div className="flex items-center justify-center overflow-hidden rounded-full bg-indigo-900 text-white w-12 h-12">
-                                            {userDetails.profile_picture ? (
-                                                <Image
-                                                    src={getProfileImageUrl()}
-                                                    alt={`${userDetails.username}'s profile`}
-                                                    className='object-cover w-full h-full rounded-full'
-                                                    width={48}
-                                                    height={48}
-                                                    onError={(e) => {
-                                                        const target = e.target as HTMLImageElement;
-                                                        target.src = "/profile.jpg";
-                                                    }}
-                                                />
-                                            ) : (
-                                                <span className="font-semibold text-sm">
-                                                    {getUserInitials()}
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div>
-                                            <h3 className="font-semibold text-gray-900">{userDetails.username}</h3>
-                                            <p className="text-sm text-gray-500">{userDetails.role}</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <div>
-                                            <label className="text-xs text-gray-500 uppercase tracking-wide">Email</label>
-                                            <p className="text-sm text-gray-900">{userDetails.email}</p>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs text-gray-500 uppercase tracking-wide">User ID</label>
-                                            <p className="text-sm text-gray-900">#{userDetails.id}</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="pt-3 border-t border-gray-100 space-y-2">
-                                        <button className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-md">
-                                            View Profile
-                                        </button>
-                                        <button className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-md">
-                                            Settings
-                                        </button>
-                                        <button
-                                            onClick={() => getMyDetails({})}
-                                            className="w-full text-left px-3 py-2 text-sm text-indigo-900 hover:bg-indigo-50 rounded-md"
-                                        >
-                                            Refresh Details
-                                        </button>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="text-center py-4">
-                                    <p className="text-gray-500 text-sm">No user details available</p>
-                                </div>
-                            )}
+                            </div>
+                            <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--card-border)" }}>
+                                <p className="text-[10px] uppercase tracking-widest font-semibold mb-0.5" style={{ color: "var(--text-tertiary)" }}>User ID</p>
+                                <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>#{userDetails.id}</p>
+                            </div>
+                            <div className="p-2">
+                                <Link href="/stakeholder/settings" onClick={() => setShowDropdown(false)}
+                                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
+                                    style={{ color: "var(--text-secondary)" }}
+                                    onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "var(--bg-elevated)"; }}
+                                    onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "transparent"; }}>
+                                    <Settings size={15} /> Settings
+                                </Link>
+                                <button onClick={() => getMyDetails({})}
+                                    className="flex items-center gap-2.5 px-3 py-2.5 w-full rounded-xl text-sm font-medium transition-all"
+                                    style={{ color: "var(--text-secondary)" }}
+                                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "var(--bg-elevated)"; }}
+                                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}>
+                                    <RefreshCw size={15} /> Refresh Profile
+                                </button>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="text-center py-6">
+                            <User size={28} className="mx-auto mb-2" style={{ color: "var(--text-tertiary)" }} />
+                            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>No profile data</p>
                         </div>
                     )}
                 </div>
-            </div>
-            </div>
-        </div>
-    )
+            )}
+        </header>
+    );
 }
-
-export default Navbar
