@@ -12,18 +12,18 @@ const TestimonialsSection: React.FC = () => (
         <div className="max-w-7xl mx-auto px-6">
             <div className="text-center mb-16">
                 <span
-                    className="inline-block text-xs font-semibold uppercase tracking-widest px-3 py-1 rounded-full mb-4"
+                    className="inline-block text-xs font-semibold uppercase tracking-widest px-3 py-1 rounded-full mb-4 animate-fade-in"
                     style={{ background: "rgba(16,185,129,0.1)", color: "#34d399", border: "1px solid rgba(16,185,129,0.2)" }}
                 >
                     Trusted worldwide
                 </span>
                 <h2
-                    className="text-4xl md:text-5xl font-bold mb-5"
+                    className="text-4xl md:text-5xl font-bold mb-5 animate-slide-up stagger-1"
                     style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}
                 >
                     What Stakeholders Say
                 </h2>
-                <p className="text-lg max-w-2xl mx-auto" style={{ color: "var(--text-secondary)" }}>
+                <p className="text-lg max-w-2xl mx-auto animate-slide-up stagger-2" style={{ color: "var(--text-secondary)" }}>
                     Trusted by mining operations, communities, and government institutions worldwide.
                 </p>
             </div>

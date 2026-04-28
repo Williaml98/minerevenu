@@ -16,18 +16,18 @@ const FeaturesSection: React.FC = () => (
         <div className="max-w-7xl mx-auto px-6">
             <div className="text-center mb-16">
                 <span
-                    className="inline-block text-xs font-semibold uppercase tracking-widest px-3 py-1 rounded-full mb-4"
+                    className="inline-block text-xs font-semibold uppercase tracking-widest px-3 py-1 rounded-full mb-4 animate-fade-in"
                     style={{ background: "rgba(59,130,246,0.1)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.2)" }}
                 >
                     Platform capabilities
                 </span>
                 <h2
-                    className="text-4xl md:text-5xl font-bold mb-5"
+                    className="text-4xl md:text-5xl font-bold mb-5 animate-slide-up stagger-1"
                     style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}
                 >
                     Built for Mining Intelligence
                 </h2>
-                <p className="text-lg max-w-2xl mx-auto leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                <p className="text-lg max-w-2xl mx-auto leading-relaxed animate-slide-up stagger-2" style={{ color: "var(--text-secondary)" }}>
                     Every feature engineered around the real-world needs of mining finance, compliance, and operations teams.
                 </p>
             </div>

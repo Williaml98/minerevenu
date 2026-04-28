@@ -18,13 +18,13 @@ const CTASection: React.FC = () => (
 
         <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
             <span
-                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-6 text-xs font-semibold uppercase tracking-widest"
+                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-6 text-xs font-semibold uppercase tracking-widest animate-fade-in"
                 style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.25)", color: "#fbbf24" }}
             >
                 <Sparkles size={12} /> Get started today
             </span>
             <h2
-                className="text-4xl md:text-6xl font-bold text-white mb-6 leading-tight"
+                className="text-4xl md:text-6xl font-bold text-white mb-6 leading-tight animate-slide-up stagger-1"
                 style={{ fontFamily: "var(--font-display)" }}
             >
                 Start Tracking Mining
@@ -33,11 +33,11 @@ const CTASection: React.FC = () => (
                     Revenue Today
                 </span>
             </h2>
-            <p className="text-lg mb-10 max-w-2xl mx-auto leading-relaxed" style={{ color: "#7c8fac" }}>
+            <p className="text-lg mb-10 max-w-2xl mx-auto leading-relaxed animate-slide-up stagger-2" style={{ color: "#7c8fac" }}>
                 Join mining operations, government bodies, and financial institutions already using MineRevenue to bring full transparency to mining revenues.
             </p>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-slide-up stagger-3">
                 <Link
                     href="/auth"
                     className="inline-flex items-center gap-2.5 px-8 py-4 rounded-2xl text-base font-semibold text-white transition-all"
