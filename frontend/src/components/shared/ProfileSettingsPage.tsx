@@ -57,6 +57,7 @@ export default function ProfileSettingsPage({ roleLabel, accentClassName = "from
     const [message, setMessage] = useState<{ type: MessageType; text: string }>({ type: null, text: "" });
     const [emailNotifications, setEmailNotifications] = useState(true);
     const [previewImage, setPreviewImage] = useState<string | null>(null);
+    const [savedImageUrl, setSavedImageUrl] = useState<string | null>(null);
     const [themePref, setThemePref] = useState<ThemePref>("dark");
     const [formData, setFormData] = useState<ProfileFormData>({
         username: sessionData?.user?.name || "",
@@ -75,6 +76,8 @@ export default function ProfileSettingsPage({ roleLabel, accentClassName = "from
             const saved = localStorage.getItem("theme") as ThemePref | null;
             if (saved && ["light", "dark", "system"].includes(saved)) setThemePref(saved);
             else setThemePref(getResolvedTheme());
+            const storedPic = localStorage.getItem("mr_profile_pic");
+            if (storedPic) setSavedImageUrl(storedPic);
         } catch { setThemePref("dark"); }
         return () => { if (timerRef.current) clearTimeout(timerRef.current); };
     }, []);
@@ -140,6 +143,14 @@ export default function ProfileSettingsPage({ roleLabel, accentClassName = "from
                 user: { ...sessionData?.user, name: result.username || sessionData?.user?.name, image: result.profile_picture || sessionData?.user?.image },
             } as UpdateSessionData);
 
+            if (result.profile_picture) {
+                const fullUrl = result.profile_picture.startsWith("/media/")
+                    ? `http://127.0.0.1:8000${result.profile_picture}`
+                    : result.profile_picture;
+                try { localStorage.setItem("mr_profile_pic", fullUrl); } catch { /* noop */ }
+                setSavedImageUrl(fullUrl);
+            }
+
             setFormData((p) => ({ ...p, currentPassword: "", newPassword: "", profilePicture: null }));
             // Keep previewImage so the uploaded photo stays visible after save
             showMessage("success", "Profile updated successfully.");
@@ -156,7 +167,7 @@ export default function ProfileSettingsPage({ roleLabel, accentClassName = "from
         }
     };
 
-    const profileImageSrc = previewImage || sessionData?.user?.image || null;
+    const profileImageSrc = previewImage || sessionData?.user?.image || savedImageUrl || null;
     const profileInitials = useMemo(() => getProfileFallback(formData.username || sessionData?.user?.name), [formData.username, sessionData?.user?.name]);
 
     const inputStyle: React.CSSProperties = {

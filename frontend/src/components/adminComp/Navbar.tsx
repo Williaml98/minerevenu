@@ -1,6 +1,5 @@
 "use client";
 import { useSession } from "next-auth/react";
-import Image from "next/image";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useGetMyDetailsMutation } from "@/lib/redux/slices/AuthSlice";
 import NotificationCenter from "@/components/shared/NotificationCenter";
@@ -17,6 +16,7 @@ export default function Navbar({ onSearch }: NavbarProps) {
     const [showDropdown, setShowDropdown] = useState(false);
     const [dropdownPos, setDropdownPos] = useState({ top: 0, right: 0 });
     const [getMyDetails, { data: userDetails, isLoading, error }] = useGetMyDetailsMutation();
+    const [localPicUrl, setLocalPicUrl] = useState<string | null>(null);
     const triggerRef = useRef<HTMLButtonElement>(null);
 
     // keep onSearch stable so the effect doesn't run on every render
@@ -25,14 +25,31 @@ export default function Navbar({ onSearch }: NavbarProps) {
 
     useEffect(() => { getMyDetails({}); }, [getMyDetails]);
 
+    useEffect(() => {
+        try {
+            const stored = localStorage.getItem("mr_profile_pic");
+            if (stored) setLocalPicUrl(stored);
+        } catch { /* noop */ }
+        const handler = () => {
+            try {
+                const stored = localStorage.getItem("mr_profile_pic");
+                if (stored) setLocalPicUrl(stored);
+            } catch { /* noop */ }
+        };
+        window.addEventListener("storage", handler);
+        return () => window.removeEventListener("storage", handler);
+    }, []);
+
     const getProfileImageUrl = () => {
-        if (!userDetails?.profile_picture) return "/profile.jpg";
-        if (userDetails.profile_picture.startsWith("/media/"))
-            return `http://127.0.0.1:8000${userDetails.profile_picture}`;
-        if (userDetails.profile_picture.startsWith("http")) return userDetails.profile_picture;
-        return userDetails.profile_picture.startsWith("/")
-            ? userDetails.profile_picture
-            : `/${userDetails.profile_picture}`;
+        if (userDetails?.profile_picture) {
+            if (userDetails.profile_picture.startsWith("/media/"))
+                return `http://127.0.0.1:8000${userDetails.profile_picture}`;
+            if (userDetails.profile_picture.startsWith("http")) return userDetails.profile_picture;
+            return userDetails.profile_picture.startsWith("/")
+                ? userDetails.profile_picture
+                : `/${userDetails.profile_picture}`;
+        }
+        return localPicUrl || "/profile.jpg";
     };
 
     const getInitials = () => {
@@ -94,18 +111,19 @@ export default function Navbar({ onSearch }: NavbarProps) {
                     <button
                         ref={triggerRef}
                         onClick={openDropdown}
-                        className="profile-trigger flex items-center justify-center w-10 h-10 rounded-full overflow-hidden cursor-pointer transition-all hover:ring-2 hover:ring-blue-500/40"
-                        style={{ background: "linear-gradient(135deg,#1e3a5f,#2563eb)", border: "1.5px solid rgba(255,255,255,0.12)" }}
+                        className="profile-trigger flex items-center justify-center w-10 h-10 rounded-full overflow-hidden cursor-pointer transition-all"
+                        style={{ background: "linear-gradient(135deg,#1e3a5f,#2563eb)", border: "2px solid rgba(255,255,255,0.55)", boxShadow: "0 0 0 1px rgba(37,99,235,0.5), 0 2px 8px rgba(0,0,0,0.3)" }}
                         aria-label="Profile menu"
                     >
-                        {userDetails?.profile_picture ? (
-                            <Image
+                        {(userDetails?.profile_picture || localPicUrl) ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
                                 src={getProfileImageUrl()}
                                 alt="Profile"
                                 width={40}
                                 height={40}
                                 className="object-cover w-full h-full"
-                                onError={(e) => { (e.target as HTMLImageElement).src = "/profile.jpg"; }}
+                                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                             />
                         ) : (
                             <span className="text-sm font-semibold text-white">{getInitials()}</span>
@@ -156,8 +174,9 @@ export default function Navbar({ onSearch }: NavbarProps) {
                                     className="flex items-center justify-center w-12 h-12 rounded-2xl overflow-hidden flex-shrink-0"
                                     style={{ background: "linear-gradient(135deg,#1e3a5f,#2563eb)" }}
                                 >
-                                    {userDetails.profile_picture ? (
-                                        <Image
+                                    {(userDetails.profile_picture || localPicUrl) ? (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
                                             src={getProfileImageUrl()}
                                             alt="Profile"
                                             width={48}
