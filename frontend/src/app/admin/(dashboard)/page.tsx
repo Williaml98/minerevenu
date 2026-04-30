@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import {
     TrendingUp, AlertTriangle, DollarSign, Activity,
     Bell, Clock, MapPin, Package, PieChart, RefreshCw,
@@ -122,7 +123,7 @@ interface DashboardData {
     totalAuditLogs: number;
 }
 
-type DateFilter = 'today' | 'week' | 'month' | 'year';
+type DateFilter = 'all' | 'today' | 'week' | 'month' | 'year';
 
 // ==================== Constants ====================
 
@@ -152,7 +153,8 @@ export default function AdminDashboard() {
     const salesTransactions = (salesTransactionsData  ?? EMPTY_ARRAY) as SalesTransaction[];
     const forecasts         = (forecastsData          ?? EMPTY_ARRAY) as Forecast[];
 
-    const [dateFilter, setDateFilter]   = useState<DateFilter>('week');
+    const router = useRouter();
+    const [dateFilter, setDateFilter]   = useState<DateFilter>('all');
     const [selectedSite, setSelectedSite] = useState<string>('all');
     const [alerts, setAlerts]           = useState<Alert[]>([]);
     const [activities, setActivities]   = useState<ActivityItem[]>([]);
@@ -161,20 +163,60 @@ export default function AdminDashboard() {
 
     useEffect(() => { setLastUpdated(new Date()); }, []);
 
+    const getDateBounds = useCallback((filter: DateFilter): { start: Date; end: Date } => {
+        const now = new Date();
+        const end = new Date(now);
+        end.setHours(23, 59, 59, 999);
+        const start = new Date(now);
+        if (filter === 'today') {
+            start.setHours(0, 0, 0, 0);
+        } else if (filter === 'week') {
+            start.setDate(now.getDate() - 6);
+            start.setHours(0, 0, 0, 0);
+        } else if (filter === 'month') {
+            start.setDate(1);
+            start.setHours(0, 0, 0, 0);
+        } else {
+            start.setMonth(0, 1);
+            start.setHours(0, 0, 0, 0);
+        }
+        return { start, end };
+    }, []);
+
+    const filteredSales = useMemo(() => {
+        return salesTransactions.filter(s => {
+            if (selectedSite !== 'all' && s.mine !== Number(selectedSite)) return false;
+            if (dateFilter === 'all') return true;
+            const { start, end } = getDateBounds(dateFilter);
+            const d = new Date(s.date);
+            return d >= start && d <= end;
+        });
+    }, [salesTransactions, selectedSite, dateFilter, getDateBounds]);
+
+    const filteredProduction = useMemo(() => {
+        return productionRecords.filter(p => {
+            if (selectedSite !== 'all' && p.mine !== Number(selectedSite)) return false;
+            if (dateFilter === 'all') return true;
+            const { start, end } = getDateBounds(dateFilter);
+            const d = new Date(p.date);
+            return d >= start && d <= end;
+        });
+    }, [productionRecords, selectedSite, dateFilter, getDateBounds]);
+
     const dashboardData: DashboardData = useMemo(() => {
-        const totalRevenue      = salesTransactions.reduce((sum, s) => sum + s.total_amount, 0);
-        const totalProduction   = productionRecords.reduce((sum, p) => sum + p.quantity_produced, 0);
-        const totalSoldQuantity = salesTransactions.reduce((sum, s) => sum + s.quantity, 0);
+        const totalRevenue      = filteredSales.reduce((sum, s) => sum + s.total_amount, 0);
+        const totalProduction   = filteredProduction.reduce((sum, p) => sum + p.quantity_produced, 0);
+        const totalSoldQuantity = filteredSales.reduce((sum, s) => sum + s.quantity, 0);
         const availableProduction = Math.max(0, totalProduction - totalSoldQuantity);
-        const avgUnitPrice      = salesTransactions.length > 0
-            ? salesTransactions.reduce((sum, s) => sum + s.unit_price, 0) / salesTransactions.length : 0;
+        const avgUnitPrice      = filteredSales.length > 0
+            ? filteredSales.reduce((sum, s) => sum + s.unit_price, 0) / filteredSales.length : 0;
         const activeMines       = companies.filter(c => c.status === 'Active').length;
-        const flaggedTransactions = salesTransactions.filter(s => s.is_flagged).length;
+        const flaggedTransactions = filteredSales.filter(s => s.is_flagged).length;
 
         let forecastAccuracy = 0;
-        if (forecasts.length && salesTransactions.length) {
+        if (forecasts.length && filteredSales.length) {
             const meanForecast = forecasts.reduce((sum, f) => sum + f.predicted_revenue, 0) / forecasts.length;
-            const meanActual   = salesTransactions.reduce((sum, s) => sum + s.total_amount, 0) / salesTransactions.length;
+            const meanActual   = filteredSales.reduce((sum, s) => sum + s.total_amount, 0) / filteredSales.length;
             const errorRatio   = Math.abs(meanForecast - meanActual) / Math.max(meanActual, 1);
             forecastAccuracy   = Math.max(0, Math.min(1, 1 - errorRatio)) * 100;
         }
@@ -182,19 +224,19 @@ export default function AdminDashboard() {
         const sitePerformance: SitePerformance[] = companies.map(company => ({
             id: company.id,
             name: company.name.split(' ')[0],
-            revenue:    salesTransactions.filter(s => s.mine === company.id).reduce((sum, s) => sum + s.total_amount, 0),
-            production: productionRecords.filter(p => p.mine === company.id).reduce((sum, p) => sum + p.quantity_produced, 0),
-            sales:      salesTransactions.filter(s => s.mine === company.id).length,
+            revenue:    filteredSales.filter(s => s.mine === company.id).reduce((sum, s) => sum + s.total_amount, 0),
+            production: filteredProduction.filter(p => p.mine === company.id).reduce((sum, p) => sum + p.quantity_produced, 0),
+            sales:      filteredSales.filter(s => s.mine === company.id).length,
             color:      COLORS[company.id % COLORS.length],
         }));
 
-        const paymentMethods = salesTransactions.reduce<Record<string, number>>((acc, s) => {
+        const paymentMethods = filteredSales.reduce<Record<string, number>>((acc, s) => {
             acc[s.payment_method] = (acc[s.payment_method] || 0) + s.total_amount;
             return acc;
         }, {});
         const paymentMethodData: PaymentMethodData[] = Object.entries(paymentMethods).map(([name, value]) => ({ name, value }));
 
-        const dailyRevenue = salesTransactions.reduce<Record<string, { date: string; total: number; count: number }>>((acc, sale) => {
+        const dailyRevenue = filteredSales.reduce<Record<string, { date: string; total: number; count: number }>>((acc, sale) => {
             const date = new Date(sale.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             if (!acc[date]) acc[date] = { date, total: 0, count: 0 };
             acc[date].total += sale.total_amount;
@@ -205,7 +247,7 @@ export default function AdminDashboard() {
             .map(item => ({ date: item.date, revenue: item.total / 1000, transactions: item.count }))
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-        const productionTrend = productionRecords.reduce<Record<string, number>>((acc, p) => {
+        const productionTrend = filteredProduction.reduce<Record<string, number>>((acc, p) => {
             const date = new Date(p.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             acc[date] = (acc[date] || 0) + p.quantity_produced;
             return acc;
@@ -218,10 +260,10 @@ export default function AdminDashboard() {
             totalRevenue, totalProduction, totalSoldQuantity, availableProduction,
             avgUnitPrice, activeMines, flaggedTransactions, forecastAccuracy,
             sitePerformance, paymentMethodData, revenueChartData, productionChartData,
-            totalSales: salesTransactions.length, totalForecasts: forecasts.length,
+            totalSales: filteredSales.length, totalForecasts: forecasts.length,
             totalAuditLogs: auditLogs.length,
         };
-    }, [salesTransactions, productionRecords, companies, forecasts, auditLogs]);
+    }, [filteredSales, filteredProduction, companies, forecasts, auditLogs]);
 
     useEffect(() => {
         const newAlerts: Alert[] = [];
@@ -330,6 +372,7 @@ export default function AdminDashboard() {
                         className="text-sm rounded-xl px-3 py-1.5 outline-none"
                         style={{ background: "var(--bg-surface)", border: "1px solid var(--card-border)", color: "var(--text-primary)" }}
                     >
+                        <option value="all">All Time</option>
                         <option value="today">Today</option>
                         <option value="week">This Week</option>
                         <option value="month">This Month</option>
@@ -364,14 +407,23 @@ export default function AdminDashboard() {
                             <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(16,185,129,0.15)", color: "#10b981" }}>High Confidence</span>
                         </div>
                         <p className="font-semibold text-base" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
-                            AI predicts <span style={{ color: "#10b981" }}>+12% revenue growth</span> next quarter based on current production trajectory
+                            {(() => {
+                                const meanForecast = forecasts.length ? forecasts.reduce((s, f) => s + f.predicted_revenue, 0) / forecasts.length : 0;
+                                const actualRevPerEntry = filteredSales.length ? dashboardData.totalRevenue / filteredSales.length : 0;
+                                const growth = actualRevPerEntry > 0 ? Math.round(((meanForecast - actualRevPerEntry) / actualRevPerEntry) * 100) : null;
+                                if (growth !== null) {
+                                    return <>AI predicts <span style={{ color: growth >= 0 ? "#10b981" : "#e11d48" }}>{growth >= 0 ? '+' : ''}{growth}% revenue growth</span> next quarter based on current production trajectory</>;
+                                }
+                                return <>AI forecast model active · {dashboardData.totalForecasts > 0 ? `${dashboardData.totalForecasts} forecasts generated` : 'Add sales data to generate forecasts'}</>;
+                            })()}
                         </p>
                         <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
-                            Forecast model v{forecasts[0]?.model_version || '2.1'} · {dashboardData.totalForecasts} active forecasts · Accuracy: {dashboardData.forecastAccuracy.toFixed(1)}%
+                            Forecast model v{forecasts[0]?.model_version || '—'} · {dashboardData.totalForecasts} active forecasts · Accuracy: {dashboardData.forecastAccuracy.toFixed(1)}%
                         </p>
                     </div>
                 </div>
                 <button
+                    onClick={() => router.push('/admin/ai-analytics')}
                     className="relative flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
                     style={{ background: "rgba(245,158,11,0.2)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.3)" }}
                 >

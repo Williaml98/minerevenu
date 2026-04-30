@@ -2,9 +2,10 @@
 
 import React, { useMemo } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import {
     AlertTriangle, CheckCircle2, Clock3, Wallet, TrendingUp, Zap,
-    FileText, ClipboardList, MessageSquare, ArrowUpRight, ArrowDownRight,
+    FileText, ArrowUpRight, ArrowDownRight,
     CalendarDays, Target, Bell, ChevronRight, Sparkles
 } from "lucide-react";
 import {
@@ -25,26 +26,6 @@ function formatCurrency(value: number) {
     }).format(value);
 }
 
-const tasks = [
-    { id: 1, title: "Submit Q2 Revenue Report", due: "Due today", status: "pending" as const, priority: "high" },
-    { id: 2, title: "Validate 14 pending transactions", due: "Due tomorrow", status: "in-progress" as const, priority: "high" },
-    { id: 3, title: "Review Kigali Site production data", due: "Due Apr 29", status: "in-progress" as const, priority: "medium" },
-    { id: 4, title: "Reconcile March payment records", due: "Completed Apr 24", status: "completed" as const, priority: "low" },
-    { id: 5, title: "Update mineral extraction logs", due: "Completed Apr 22", status: "completed" as const, priority: "low" },
-];
-
-const alerts = [
-    { id: 1, message: "3 transactions flagged for review", type: "warning" as const, time: "2h ago" },
-    { id: 2, message: "Revenue target 87% achieved this month", type: "success" as const, time: "5h ago" },
-    { id: 3, message: "New assignment: Northern Zone audit", type: "info" as const, time: "1d ago" },
-];
-
-const taskStatusConfig = {
-    pending:     { label: "Pending",     color: "#f59e0b", bg: "rgba(245,158,11,0.12)",  icon: Clock3 },
-    "in-progress": { label: "In Progress", color: "#3b82f6", bg: "rgba(59,130,246,0.12)", icon: TrendingUp },
-    completed:   { label: "Completed",   color: "#10b981", bg: "rgba(16,185,129,0.12)", icon: CheckCircle2 },
-};
-
 const alertConfig = {
     warning: { border: "#f59e0b", bg: "rgba(245,158,11,0.08)", icon: AlertTriangle, iconColor: "#f59e0b" },
     success: { border: "#10b981", bg: "rgba(16,185,129,0.08)", icon: CheckCircle2,   iconColor: "#10b981" },
@@ -54,6 +35,7 @@ const alertConfig = {
 const CHART_COLORS = ["#059669", "#10b981", "#34d399", "#6ee7b7", "#a7f3d0", "#d1fae5"];
 
 export default function OfficerDashboardPage() {
+    const router = useRouter();
     const { data: session } = useSession();
     const { data: summary, isLoading: summaryLoading } = useGetRevenueSummaryQuery({});
     const { data: sales = [], isLoading: salesLoading } = useGetSalesTransactionsQuery({});
@@ -82,8 +64,44 @@ export default function OfficerDashboardPage() {
         return dailyTrend.slice(-7).map((d, i) => ({ ...d, fill: CHART_COLORS[i % CHART_COLORS.length] }));
     }, [dailyTrend]);
 
+    // Derive real alerts from live data
+    const liveAlerts = useMemo(() => {
+        const result: Array<{ id: number; message: string; type: "warning" | "success" | "info"; time: string }> = [];
+        if (summary?.flagged_entries && summary.flagged_entries > 0) {
+            result.push({
+                id: 1,
+                message: `${summary.flagged_entries} transaction${summary.flagged_entries > 1 ? 's' : ''} flagged for review`,
+                type: "warning",
+                time: "Live",
+            });
+        }
+        if (summary?.pending_entries && summary.pending_entries > 0) {
+            result.push({
+                id: 2,
+                message: `${summary.pending_entries} entr${summary.pending_entries > 1 ? 'ies' : 'y'} pending validation`,
+                type: "info",
+                time: "Live",
+            });
+        }
+        if (summary?.month_revenue && summary.month_revenue > 0) {
+            result.push({
+                id: 3,
+                message: `Monthly revenue at ${formatCurrency(summary.month_revenue)}`,
+                type: "success",
+                time: "Live",
+            });
+        }
+        return result;
+    }, [summary]);
+
     const isLoading = summaryLoading || salesLoading;
-    const taskCounts = { pending: tasks.filter(t => t.status === "pending").length, inProgress: tasks.filter(t => t.status === "in-progress").length, completed: tasks.filter(t => t.status === "completed").length };
+
+    // Real header stats from summary API
+    const headerStats = [
+        { label: "Pending",     value: summary?.pending_entries  ?? "—" },
+        { label: "Flagged",     value: summary?.flagged_entries  ?? "—" },
+        { label: "Approved",    value: summary?.approved_entries ?? "—" },
+    ];
 
     return (
         <div className="min-h-screen p-4 md:p-6 space-y-5" style={{ background: "var(--bg-base)" }}>
@@ -105,20 +123,16 @@ export default function OfficerDashboardPage() {
                         </h1>
                         <p className="text-emerald-200 text-sm mt-1">Revenue Officer · Mining Operations Division</p>
                     </div>
-                    <div className="flex gap-3">
-                        <div className="text-center px-4 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)" }}>
-                            <p className="text-2xl font-bold text-white">{taskCounts.inProgress}</p>
-                            <p className="text-xs text-emerald-300">In Progress</p>
+                    {!isLoading && (
+                        <div className="flex gap-3">
+                            {headerStats.map((stat) => (
+                                <div key={stat.label} className="text-center px-4 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)" }}>
+                                    <p className="text-2xl font-bold text-white">{stat.value}</p>
+                                    <p className="text-xs text-emerald-300">{stat.label}</p>
+                                </div>
+                            ))}
                         </div>
-                        <div className="text-center px-4 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)" }}>
-                            <p className="text-2xl font-bold text-white">{taskCounts.pending}</p>
-                            <p className="text-xs text-emerald-300">Pending</p>
-                        </div>
-                        <div className="text-center px-4 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)" }}>
-                            <p className="text-2xl font-bold text-white">{taskCounts.completed}</p>
-                            <p className="text-xs text-emerald-300">Done</p>
-                        </div>
-                    </div>
+                    )}
                 </div>
             </div>
 
@@ -199,13 +213,17 @@ export default function OfficerDashboardPage() {
                 <div className="flex-1">
                     <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#a78bfa" }}>AI Insight</p>
                     <p className="font-semibold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
-                        Your revenue contribution is trending <span style={{ color: "#10b981" }}>+12% above target</span> — forecast confidence: 94%
+                        {summary?.month_revenue
+                            ? <>Monthly revenue at <span style={{ color: "#10b981" }}>{formatCurrency(summary.month_revenue)}</span> — forecast confidence based on current validation queue</>
+                            : "AI forecast model active. Add revenue records to generate insights."}
                     </p>
                     <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
-                        Based on 14-day trend analysis and current validation queue. 3 flagged entries may impact final figures.
+                        {summary?.pending_entries ? `${summary.pending_entries} pending entries · ` : ""}
+                        {summary?.flagged_entries ? `${summary.flagged_entries} flagged entries may impact final figures.` : "No flagged entries."}
                     </p>
                 </div>
                 <button
+                    onClick={() => router.push('/officer/ai-analytics')}
                     className="text-xs font-semibold px-4 py-2 rounded-xl flex-shrink-0 flex items-center gap-1 transition-all"
                     style={{ background: "rgba(124,58,237,0.2)", color: "#a78bfa", border: "1px solid rgba(124,58,237,0.3)" }}
                 >
@@ -213,78 +231,22 @@ export default function OfficerDashboardPage() {
                 </button>
             </div>
 
-            {/* Tasks + Alerts */}
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-                {/* Tasks */}
-                <div className="xl:col-span-2 rounded-2xl p-5" style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)" }}>
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                            <ClipboardList size={18} style={{ color: "#059669" }} />
-                            <h2 className="font-semibold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
-                                Assigned Tasks & Targets
-                            </h2>
-                        </div>
-                        <span className="text-xs px-2 py-1 rounded-full" style={{ background: "rgba(5,150,105,0.1)", color: "#059669" }}>
-                            {tasks.length} total
-                        </span>
-                    </div>
-
-                    <div className="space-y-2">
-                        {tasks.map((task) => {
-                            const cfg = taskStatusConfig[task.status];
-                            return (
-                                <div
-                                    key={task.id}
-                                    className="flex items-center gap-3 p-3 rounded-xl transition-all"
-                                    style={{ border: "1px solid var(--card-border)" }}
-                                    onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = "var(--bg-surface)"}
-                                    onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = "transparent"}
-                                >
-                                    <div className="p-1.5 rounded-lg flex-shrink-0" style={{ background: cfg.bg }}>
-                                        <cfg.icon size={14} style={{ color: cfg.color }} />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p
-                                            className="text-sm font-medium truncate"
-                                            style={{
-                                                color: "var(--text-primary)",
-                                                textDecoration: task.status === "completed" ? "line-through" : "none",
-                                                opacity: task.status === "completed" ? 0.6 : 1,
-                                            }}
-                                        >
-                                            {task.title}
-                                        </p>
-                                        <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{task.due}</p>
-                                    </div>
-                                    <span
-                                        className="text-xs font-medium px-2 py-1 rounded-full flex-shrink-0"
-                                        style={{ background: cfg.bg, color: cfg.color }}
-                                    >
-                                        {cfg.label}
-                                    </span>
-                                    {task.priority === "high" && (
-                                        <span className="text-xs font-semibold px-2 py-1 rounded-full flex-shrink-0"
-                                            style={{ background: "rgba(225,29,72,0.1)", color: "#e11d48" }}>
-                                            High
-                                        </span>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
+            {/* Alerts */}
+            <div className="rounded-2xl p-5" style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)" }}>
+                <div className="flex items-center gap-2 mb-4">
+                    <Bell size={18} style={{ color: "#f59e0b" }} />
+                    <h2 className="font-semibold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+                        Recent Alerts
+                    </h2>
                 </div>
 
-                {/* Alerts */}
-                <div className="rounded-2xl p-5" style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)" }}>
-                    <div className="flex items-center gap-2 mb-4">
-                        <Bell size={18} style={{ color: "#f59e0b" }} />
-                        <h2 className="font-semibold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
-                            Recent Alerts
-                        </h2>
-                    </div>
-
+                {isLoading ? (
+                    <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Loading alerts…</p>
+                ) : liveAlerts.length === 0 ? (
+                    <p className="text-sm" style={{ color: "var(--text-secondary)" }}>No alerts at this time.</p>
+                ) : (
                     <div className="space-y-3">
-                        {alerts.map((alert) => {
+                        {liveAlerts.map((alert) => {
                             const cfg = alertConfig[alert.type];
                             return (
                                 <div
@@ -303,7 +265,7 @@ export default function OfficerDashboardPage() {
                             );
                         })}
                     </div>
-                </div>
+                )}
             </div>
 
             {/* Quick Actions */}
@@ -316,12 +278,13 @@ export default function OfficerDashboardPage() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {[
-                        { label: "Submit Report", desc: "File your daily revenue summary", icon: FileText, color: "#2563eb", bg: "rgba(37,99,235,0.08)", border: "rgba(37,99,235,0.2)" },
-                        { label: "View Assignments", desc: "See all assigned tasks and targets", icon: ClipboardList, color: "#059669", bg: "rgba(5,150,105,0.08)", border: "rgba(5,150,105,0.2)" },
-                        { label: "Request Review", desc: "Escalate flagged entries for review", icon: MessageSquare, color: "#7c3aed", bg: "rgba(124,58,237,0.08)", border: "rgba(124,58,237,0.2)" },
+                        { label: "Submit Report",      desc: "File your daily revenue summary",          icon: FileText,   color: "#2563eb", bg: "rgba(37,99,235,0.08)",    border: "rgba(37,99,235,0.2)",   href: "/officer/report" },
+                        { label: "Manage Revenue",     desc: "Review and validate revenue records",      icon: TrendingUp, color: "#059669", bg: "rgba(5,150,105,0.08)",    border: "rgba(5,150,105,0.2)",   href: "/officer/revenue-management" },
+                        { label: "View AI Analytics",  desc: "Check forecasts and anomaly detection",    icon: Target,     color: "#7c3aed", bg: "rgba(124,58,237,0.08)",   border: "rgba(124,58,237,0.2)",  href: "/officer/ai-analytics" },
                     ].map((action) => (
                         <button
                             key={action.label}
+                            onClick={() => router.push(action.href)}
                             className="flex items-start gap-3 p-4 rounded-xl text-left transition-all duration-200 w-full"
                             style={{ background: action.bg, border: `1px solid ${action.border}` }}
                             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)"; (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)"; }}

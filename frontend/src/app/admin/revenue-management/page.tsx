@@ -237,12 +237,12 @@ export default function RevenueManagement() {
     // Get unique revenue sources for filter
     const revenueSources = ['All Sources', ...new Set(entries.map(e => e.revenueSource))];
 
-    const getStatusColor = (status: string) => {
+    const getStatusStyle = (status: string): React.CSSProperties => {
         switch (status) {
-            case 'Pending': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-            case 'Approved': return 'bg-green-100 text-green-700 border-green-200';
-            case 'Rejected': return 'bg-red-100 text-red-700 border-red-200';
-            default: return 'bg-gray-100 text-gray-700 border-gray-200';
+            case 'Pending':  return { background: '#d97706', color: '#fff', border: '1px solid #b45309' };
+            case 'Approved': return { background: '#0284c7', color: '#fff', border: '1px solid #0369a1' };
+            case 'Rejected': return { background: '#dc2626', color: '#fff', border: '1px solid #b91c1c' };
+            default:         return { background: '#64748b', color: '#fff', border: '1px solid #475569' };
         }
     };
 
@@ -728,7 +728,7 @@ export default function RevenueManagement() {
                                                         })}
                                                     </td>
                                                     <td className="px-6 py-4">
-                                                        <span className={`px-3 py-1.5 rounded-full text-xs font-medium border ${getStatusColor(entry.status)}`}>
+                                                        <span className="px-3 py-1.5 rounded-full text-xs font-medium" style={getStatusStyle(entry.status)}>
                                                             {formatStatusLabel(entry.status)}
                                                         </span>
                                                     </td>
@@ -841,7 +841,7 @@ export default function RevenueManagement() {
                                                         <td className="px-6 py-4 text-gray-600">{formatCurrency(record.unit_price)}</td>
                                                         <td className="px-6 py-4 font-semibold text-gray-900">{formatCurrency(record.total_revenue || (record.quantity_produced * record.unit_price))}</td>
                                                         <td className="px-6 py-4">
-                                                            <span className={`px-3 py-1.5 rounded-full text-xs font-medium border ${getStatusColor(record.status || 'Pending')}`}>
+                                                            <span className="px-3 py-1.5 rounded-full text-xs font-medium" style={getStatusStyle(record.status || 'Pending')}>
                                                                 {formatStatusLabel((record.status || 'Pending') as RevenueEntry['status'])}
                                                             </span>
                                                         </td>
@@ -1397,7 +1397,7 @@ export default function RevenueManagement() {
                                 </div>
                                 <div className="bg-gray-50 rounded-xl p-4">
                                     <p className="text-sm text-gray-600 mb-1">Status</p>
-                                    <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-medium border ${getStatusColor(selectedEntry.status)}`}>
+                                    <span className="inline-block px-3 py-1.5 rounded-full text-sm font-medium" style={getStatusStyle(selectedEntry.status)}>
                                         {formatStatusLabel(selectedEntry.status)}
                                     </span>
                                 </div>

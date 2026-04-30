@@ -718,16 +718,19 @@ export function AIAnalyticsDashboard({
                                 );
                             })()}
                         </svg>
+                    </div>
 
-                        <div className="absolute bottom-4 left-4 flex gap-6">
-                            <div className="flex items-center gap-2">
-                                <div className="w-8 h-0.5 bg-blue-600"></div>
-                                <span className="text-sm text-gray-600">Actual Revenue</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <div className="w-8 h-0.5 bg-blue-600 border-dashed" style={{ borderTop: '2px dashed' }}></div>
-                                <span className="text-sm text-gray-600">Forecasted Revenue</span>
-                            </div>
+                    {/* Chart legend — outside the chart area */}
+                    <div className="mt-3 flex justify-center gap-8">
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-0.5 bg-blue-600"></div>
+                            <span className="text-sm text-gray-600">Actual Revenue</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <svg width="32" height="2" className="overflow-visible">
+                                <line x1="0" y1="1" x2="32" y2="1" stroke="#1A73E8" strokeWidth="2" strokeDasharray="6,4" />
+                            </svg>
+                            <span className="text-sm text-gray-600">Forecasted Revenue</span>
                         </div>
                     </div>
 
