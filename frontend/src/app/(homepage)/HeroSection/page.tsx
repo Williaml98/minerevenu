@@ -3,8 +3,17 @@
 import React from "react";
 import Link from "next/link";
 import { ArrowRight, TrendingUp, Shield, Zap } from "lucide-react";
+import { useGetPublicStatsQuery } from "@/lib/redux/slices/MiningSlice";
+
+function fmtRevenue(n: number): string {
+    if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B+`;
+    if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M+`;
+    return `$${n.toLocaleString()}`;
+}
 
 const MineTrackerHero: React.FC = () => {
+    const { data: stats } = useGetPublicStatsQuery();
+
     return (
         <section className="relative min-h-screen flex items-center justify-center overflow-hidden" style={{ background: "linear-gradient(145deg,#030d1f 0%,#0a1628 45%,#091228 100%)" }}>
             {/* Grid overlay */}
@@ -103,9 +112,21 @@ const MineTrackerHero: React.FC = () => {
                 {/* Stats */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto animate-slide-up stagger-4">
                     {[
-                        { value: "98.4%", label: "Forecast accuracy", icon: TrendingUp },
-                        { value: "$2.4B+", label: "Revenue tracked", icon: Zap },
-                        { value: "240+", label: "Mining sites monitored", icon: Shield },
+                        {
+                            value: stats ? `${stats.compliance_rate.toFixed(1)}%` : "—",
+                            label: "Compliance rate",
+                            icon: TrendingUp,
+                        },
+                        {
+                            value: stats ? fmtRevenue(stats.total_revenue) : "—",
+                            label: "Revenue tracked",
+                            icon: Zap,
+                        },
+                        {
+                            value: stats ? `${stats.active_sites}+` : "—",
+                            label: "Mining sites monitored",
+                            icon: Shield,
+                        },
                     ].map(({ value, label, icon: Icon }) => (
                         <div
                             key={label}

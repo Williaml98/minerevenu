@@ -6,6 +6,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { toast } from "sonner";
+import { useGetPublicStatsQuery } from "@/lib/redux/slices/MiningSlice";
+
+function fmtRevenue(n: number): string {
+    if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B+`;
+    if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M+`;
+    return `$${n.toLocaleString()}`;
+}
 
 export default function SignInPage() {
     const [email, setEmail]           = useState("");
@@ -13,6 +20,7 @@ export default function SignInPage() {
     const [isLoading, setIsLoading]   = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const router = useRouter();
+    const { data: stats } = useGetPublicStatsQuery();
 
     const getRedirectPath = (role: string) => {
         switch (role.toLowerCase()) {
@@ -304,9 +312,18 @@ export default function SignInPage() {
                         {/* Stat chips — desktop only */}
                         <div className="lg-fade-up ld-6 hidden lg:flex items-center gap-4 mt-10 flex-wrap">
                             {[
-                                { value: "98.4%", label: "Accuracy" },
-                                { value: "$2.4B+", label: "Tracked" },
-                                { value: "240+", label: "Mines" },
+                                {
+                                    value: stats ? `${stats.compliance_rate.toFixed(1)}%` : "—",
+                                    label: "Compliance",
+                                },
+                                {
+                                    value: stats ? fmtRevenue(stats.total_revenue) : "—",
+                                    label: "Tracked",
+                                },
+                                {
+                                    value: stats ? `${stats.active_sites}+` : "—",
+                                    label: "Mines",
+                                },
                             ].map(({ value, label }) => (
                                 <div
                                     key={label}

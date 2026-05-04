@@ -277,6 +277,32 @@ class RevenueSummaryAPIView(APIView):
         )
 
 
+class PublicStatsAPIView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        transactions = SalesTransaction.objects.all()
+        total_revenue = transactions.aggregate(total=Sum("total_amount"))["total"] or 0
+        status_counts = transactions.aggregate(
+            approved=Count("id", filter=Q(status=SalesTransaction.STATUS_APPROVED)),
+            total=Count("id"),
+        )
+        compliance_rate = (
+            (status_counts["approved"] / status_counts["total"]) * 100
+            if status_counts["total"] > 0
+            else 0.0
+        )
+        active_sites = Mine.objects.filter(status__iexact="Active").count()
+        return Response(
+            {
+                "total_revenue": float(total_revenue),
+                "compliance_rate": compliance_rate,
+                "active_sites": active_sites,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
 class StakeholderInsightsAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
