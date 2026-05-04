@@ -69,7 +69,7 @@ export default function Sidebar() {
                         <TrendingUp size={17} color="#fff" />
                     </div>
                     <div className="min-w-0">
-                        <p className="text-[14px] font-bold text-white leading-tight tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }}>
+                        <p className="text-[14px] font-bold leading-tight tracking-tight truncate" style={{ fontFamily: "var(--font-display)", color: "var(--sidebar-logo-text)" }}>
                             MineRevenue
                         </p>
                         <p className="text-[10px] uppercase tracking-widest" style={{ color: "#a78bfa" }}>
@@ -97,7 +97,7 @@ export default function Sidebar() {
                                         }}
                                         onMouseEnter={(e) => {
                                             if (!active) (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "var(--sidebar-hover-bg)";
-                                            if (!active) (e.currentTarget as HTMLAnchorElement).style.color = "#c8d8f0";
+                                            if (!active) (e.currentTarget as HTMLAnchorElement).style.color = "var(--sidebar-text-active)";
                                         }}
                                         onMouseLeave={(e) => {
                                             if (!active) (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "transparent";
@@ -107,7 +107,7 @@ export default function Sidebar() {
                                         <span
                                             className="flex items-center justify-center w-7 h-7 rounded-lg flex-shrink-0 transition-all"
                                             style={{
-                                                backgroundColor: active ? "#7c3aed" : "rgba(255,255,255,0.06)",
+                                                backgroundColor: active ? "#7c3aed" : "var(--sidebar-icon-bg)",
                                                 color: active ? "#fff" : "inherit",
                                             }}
                                         >
@@ -138,7 +138,7 @@ export default function Sidebar() {
                             (e.currentTarget as HTMLButtonElement).style.color = "var(--sidebar-text)";
                         }}
                     >
-                        <span className="flex items-center justify-center w-7 h-7 rounded-lg flex-shrink-0" style={{ backgroundColor: "rgba(255,255,255,0.06)" }}>
+                        <span className="flex items-center justify-center w-7 h-7 rounded-lg flex-shrink-0" style={{ backgroundColor: "var(--sidebar-icon-bg)" }}>
                             <LogOut size={14} />
                         </span>
                         <span>Sign Out</span>

@@ -81,7 +81,7 @@ export default function Navbar({ onSearch }: NavbarProps) {
             style={{
                 background: "var(--navbar-bg)",
                 borderBottom: "1px solid var(--navbar-border)",
-                boxShadow: "0 4px 24px rgba(0,0,0,0.18)",
+                boxShadow: "var(--navbar-shadow)",
             }}
         >
             <div className="flex items-center justify-between px-5 py-3 gap-4">
@@ -89,8 +89,8 @@ export default function Navbar({ onSearch }: NavbarProps) {
                     <span className="text-[11px] uppercase tracking-widest font-semibold" style={{ color: "#10b981" }}>
                         Officer
                     </span>
-                    <span style={{ color: "rgba(255,255,255,0.15)" }}>·</span>
-                    <span className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.55)" }}>
+                    <span style={{ color: "var(--navbar-separator)" }}>·</span>
+                    <span className="text-sm font-medium" style={{ color: "var(--navbar-subtitle)" }}>
                         Revenue Operations
                     </span>
                 </div>

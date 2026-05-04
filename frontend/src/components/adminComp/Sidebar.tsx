@@ -81,8 +81,8 @@ export default function Sidebar() {
                     </div>
                     <div className="min-w-0">
                         <p
-                            className="text-[14px] font-bold text-white leading-tight tracking-tight truncate"
-                            style={{ fontFamily: "var(--font-display)" }}
+                            className="text-[14px] font-bold leading-tight tracking-tight truncate"
+                            style={{ fontFamily: "var(--font-display)", color: "var(--sidebar-logo-text)" }}
                         >
                             MineRevenue
                         </p>
@@ -115,7 +115,7 @@ export default function Sidebar() {
                                         }}
                                         onMouseEnter={(e) => {
                                             if (!active) (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "var(--sidebar-hover-bg)";
-                                            if (!active) (e.currentTarget as HTMLAnchorElement).style.color = "#c8d8f0";
+                                            if (!active) (e.currentTarget as HTMLAnchorElement).style.color = "var(--sidebar-text-active)";
                                         }}
                                         onMouseLeave={(e) => {
                                             if (!active) (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "transparent";
@@ -125,7 +125,7 @@ export default function Sidebar() {
                                         <span
                                             className="flex items-center justify-center w-7 h-7 rounded-lg flex-shrink-0 transition-all"
                                             style={{
-                                                backgroundColor: active ? "var(--sidebar-accent)" : "rgba(255,255,255,0.06)",
+                                                backgroundColor: active ? "var(--sidebar-accent)" : "var(--sidebar-icon-bg)",
                                                 color: active ? "#fff" : "inherit",
                                             }}
                                         >
@@ -162,7 +162,7 @@ export default function Sidebar() {
                     >
                         <span
                             className="flex items-center justify-center w-7 h-7 rounded-lg flex-shrink-0"
-                            style={{ backgroundColor: "rgba(255,255,255,0.06)" }}
+                            style={{ backgroundColor: "var(--sidebar-icon-bg)" }}
                         >
                             <LogOut size={14} />
                         </span>

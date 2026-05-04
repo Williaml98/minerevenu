@@ -57,6 +57,12 @@ export interface RevenueSummary {
     total_transactions: number;
 }
 
+export interface PublicStats {
+    total_revenue: number;
+    compliance_rate: number;
+    active_sites: number;
+}
+
 export interface StakeholderInsights {
     overview: {
         total_revenue: number;
@@ -274,6 +280,13 @@ const miningApi = apiSlice.injectEndpoints({
             }),
             providesTags: ["RevenueSummary", "Analytics"],
         }),
+        getPublicStats: builder.query<PublicStats, void>({
+            query: () => ({
+                url: "revenue/public-stats/",
+                method: "GET",
+                headers: { "X-Skip-Auth": "true" },
+            }),
+        }),
     }),
 });
 
@@ -296,4 +309,5 @@ export const {
     useGetSalesTransactionsQuery,
     useGetRevenueSummaryQuery,
     useGetStakeholderInsightsQuery,
+    useGetPublicStatsQuery,
 } = miningApi;

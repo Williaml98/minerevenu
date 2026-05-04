@@ -6,8 +6,8 @@ import {
     TrendingUp, AlertTriangle, DollarSign, Activity,
     Bell, Clock, MapPin, Package, PieChart, RefreshCw,
     Filter, Download, Eye, Shield, Users, Database, ChevronRight,
-    BarChart3, Wallet, Truck, Gauge, Target, Award, Calendar,
-    Sparkles, ArrowUpRight, ArrowDownRight, Zap
+    BarChart3, Truck, Gauge, Target, Award,
+    Sparkles, Zap
 } from 'lucide-react';
 import {
     XAxis, YAxis, CartesianGrid, Tooltip,
@@ -92,6 +92,15 @@ interface ActivityItem {
     type: 'audit' | 'system' | 'user' | 'revenue';
 }
 
+interface KpiCard {
+    title: string;
+    value: string;
+    icon: React.ElementType;
+    color: string;
+    bg: string;
+    trend: number;
+}
+
 interface SitePerformance {
     id: number;
     name: string;
@@ -133,7 +142,7 @@ const EMPTY_ARRAY: unknown[] = [];
 // ==================== Helpers ====================
 
 const formatCurrency = (value: number): string =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0, notation: 'compact', compactDisplay: 'short' }).format(value);
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 1, notation: 'compact', compactDisplay: 'short' }).format(value);
 
 const formatNumber = (value: number): string =>
     new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(value);
@@ -317,13 +326,20 @@ export default function AdminDashboard() {
         pending:   { color: '#94a3b8', bg: 'rgba(148,163,184,0.12)', label: 'Pending' },
     };
 
-    const kpiCards = [
-        { title: 'Total Revenue',  value: formatCurrency(dashboardData.totalRevenue),  icon: DollarSign, color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  change: '+12.3%', up: true,  trend: 78 },
-        { title: 'Production',     value: `${formatNumber(dashboardData.totalProduction)} t`, icon: Package,    color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', change: '+8.1%',  up: true,  trend: 65 },
-        { title: 'Active Mines',   value: String(dashboardData.activeMines),            icon: MapPin,     color: '#10b981', bg: 'rgba(16,185,129,0.1)', change: '100%',   up: true,  trend: 100 },
-        { title: 'AI Forecast Acc',value: `${dashboardData.forecastAccuracy.toFixed(0)}%`, icon: TrendingUp, color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)', change: '+2.4%',  up: true,  trend: 94 },
-        { title: 'Avg Price / t',  value: formatCurrency(dashboardData.avgUnitPrice),  icon: Activity,   color: '#e11d48', bg: 'rgba(225,29,72,0.1)',   change: '-1.2%',  up: false, trend: 45 },
-        { title: 'Flagged',        value: String(dashboardData.flaggedTransactions),   icon: AlertTriangle, color: '#ef4444', bg: 'rgba(239,68,68,0.1)', change: dashboardData.flaggedTransactions > 0 ? '+2' : '0', up: false, trend: dashboardData.flaggedTransactions > 0 ? 25 : 0 },
+    const activeMinesPct = companies.length > 0
+        ? Math.round((dashboardData.activeMines / companies.length) * 100) : 0;
+    const soldRatioPct = dashboardData.totalProduction > 0
+        ? Math.min(100, Math.round((dashboardData.totalSoldQuantity / dashboardData.totalProduction) * 100)) : 0;
+    const flaggedPct = filteredSales.length > 0
+        ? Math.min(100, Math.round((dashboardData.flaggedTransactions / filteredSales.length) * 100)) : 0;
+
+    const kpiCards: KpiCard[] = [
+        { title: 'Total Revenue',   value: formatCurrency(dashboardData.totalRevenue),           icon: DollarSign,    color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  trend: soldRatioPct },
+        { title: 'Production',      value: `${formatNumber(dashboardData.totalProduction)} t`,   icon: Package,       color: '#3b82f6', bg: 'rgba(59,130,246,0.1)',  trend: soldRatioPct },
+        { title: 'Active Mines',    value: String(dashboardData.activeMines),                    icon: MapPin,        color: '#10b981', bg: 'rgba(16,185,129,0.1)', trend: activeMinesPct },
+        { title: 'AI Forecast Acc', value: `${dashboardData.forecastAccuracy.toFixed(0)}%`,      icon: TrendingUp,    color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)', trend: Math.round(dashboardData.forecastAccuracy) },
+        { title: 'Avg Price / t',   value: formatCurrency(dashboardData.avgUnitPrice),           icon: Activity,      color: '#e11d48', bg: 'rgba(225,29,72,0.1)',   trend: soldRatioPct },
+        { title: 'Flagged',         value: String(dashboardData.flaggedTransactions),             icon: AlertTriangle, color: '#ef4444', bg: 'rgba(239,68,68,0.1)',  trend: flaggedPct },
     ];
 
     return (
@@ -445,13 +461,6 @@ export default function AdminDashboard() {
                             <div className="p-2 rounded-xl" style={{ background: card.bg }}>
                                 <card.icon size={16} style={{ color: card.color }} />
                             </div>
-                            <span
-                                className="text-xs font-semibold flex items-center gap-0.5 px-1.5 py-0.5 rounded-full"
-                                style={{ color: card.up ? "#10b981" : "#e11d48", background: card.up ? "rgba(16,185,129,0.1)" : "rgba(225,29,72,0.1)" }}
-                            >
-                                {card.up ? <ArrowUpRight size={11} /> : <ArrowDownRight size={11} />}
-                                {card.change}
-                            </span>
                         </div>
                         <p className="text-xs font-medium mb-1 leading-tight" style={{ color: "var(--text-secondary)" }}>{card.title}</p>
                         <p className="text-lg font-bold leading-tight" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>{card.value}</p>

@@ -114,6 +114,22 @@ export default function RevenueManagement() {
     const [dateTo, setDateTo] = useState('');
     const [revenueSourceFilter, setRevenueSourceFilter] = useState('All Sources');
 
+    // Pagination
+    const rowsPerPage = 10;
+    const [entriesPage, setEntriesPage] = useState(1);
+    const [productionPage, setProductionPage] = useState(1);
+
+    const getPageNums = (current: number, total: number) => {
+        const pages: (number | '...')[] = [];
+        if (total <= 7) { for (let i = 1; i <= total; i++) pages.push(i); return pages; }
+        pages.push(1);
+        if (current > 3) pages.push('...');
+        for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) pages.push(i);
+        if (current < total - 2) pages.push('...');
+        pages.push(total);
+        return pages;
+    };
+
     // Modal states
     const [showAddProductionModal, setShowAddProductionModal] = useState(false);
     const [showAddSalesModal, setShowAddSalesModal] = useState(false);
@@ -233,6 +249,10 @@ export default function RevenueManagement() {
             setEntries(combined);
         }
     }, [productionRecords, salesTransactions, mineCompanies, loadingProduction, loadingSales, loadingMines, entries]);
+
+    // Reset pages on filter change
+    useEffect(() => { setEntriesPage(1); }, [siteFilter, statusFilter, dateFrom, dateTo, revenueSourceFilter]);
+    useEffect(() => { setProductionPage(1); }, [siteFilter, statusFilter, dateFrom, dateTo]);
 
     // Get unique revenue sources for filter
     const revenueSources = ['All Sources', ...new Set(entries.map(e => e.revenueSource))];
@@ -577,25 +597,31 @@ export default function RevenueManagement() {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-base)" }}>
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                    <p className="text-gray-600">Loading revenue data...</p>
+                    <p style={{ color: "var(--text-secondary)" }}>Loading revenue data...</p>
                 </div>
             </div>
         );
     }
 
+    // Paginated slices
+    const totalEntryPages = Math.max(1, Math.ceil(filteredEntries.length / rowsPerPage));
+    const pagedEntries = filteredEntries.slice((entriesPage - 1) * rowsPerPage, entriesPage * rowsPerPage);
+    const totalProdPages = Math.max(1, Math.ceil(filteredProductionRecords.length / rowsPerPage));
+    const pagedProduction = filteredProductionRecords.slice((productionPage - 1) * rowsPerPage, productionPage * rowsPerPage);
+
     return (
-        <div className="min-h-screen bg-gray-50 p-8">
+        <div className="min-h-screen p-8" style={{ background: "var(--bg-base)" }}>
             <div className="max-w-[1600px] mx-auto">
                 <div className="flex gap-6">
                     {/* Main Content */}
                     <div className="flex-1">
                         {/* Page Title */}
                         <div className="mb-8">
-                            <h1 className="text-3xl font-bold text-gray-900">Revenue Management</h1>
-                            <p className="text-gray-600 mt-2">Oversee, validate, and manage mining revenue from all sites.</p>
+                            <h1 className="text-3xl font-bold" style={{ color: "var(--text-primary)" }}>Revenue Management</h1>
+                            <p className="mt-2" style={{ color: "var(--text-secondary)" }}>Oversee, validate, and manage mining revenue from all sites.</p>
                             {syncMessage && (
                                 <div className={`mt-3 rounded-xl px-4 py-2 text-sm ${syncMessage.type === 'success'
                                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
@@ -607,7 +633,7 @@ export default function RevenueManagement() {
                         </div>
 
                         {/* Filters & Actions Bar */}
-                        <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
+                        <div className="rounded-2xl shadow-sm p-6 mb-6" style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)" }}>
                             <div className="flex flex-wrap gap-4 items-center">
                                 {/* Left Section - Filters */}
                                 <div className="flex flex-wrap gap-3 flex-1">
@@ -689,38 +715,41 @@ export default function RevenueManagement() {
                         </div>
 
                         {/* Revenue Entries Table */}
-                        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                        <div className="rounded-2xl shadow-sm overflow-hidden" style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)" }}>
                             <div className="overflow-x-auto">
                                 <table className="w-full">
-                                    <thead className="bg-gray-50 border-b border-gray-200">
+                                    <thead style={{ background: "var(--bg-elevated)", borderBottom: "1px solid var(--border)" }}>
                                         <tr>
-                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Site Name</th>
-                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Revenue Source</th>
-                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Amount ({currencyCode})</th>
-                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Date</th>
-                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Status</th>
-                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Submitted By</th>
-                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Actions</th>
+                                            <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>Site Name</th>
+                                            <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>Revenue Source</th>
+                                            <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>Amount ({currencyCode})</th>
+                                            <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>Date</th>
+                                            <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>Status</th>
+                                            <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>Submitted By</th>
+                                            <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>Actions</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-gray-200">
-                                        {filteredEntries.length === 0 ? (
+                                    <tbody style={{ borderTop: "1px solid var(--border)" }}>
+                                        {pagedEntries.length === 0 ? (
                                             <tr>
-                                                <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                                                <td colSpan={7} className="px-6 py-8 text-center" style={{ color: "var(--text-tertiary)" }}>
                                                     No revenue entries found
                                                 </td>
                                             </tr>
                                         ) : (
-                                            filteredEntries.map((entry) => (
-                                                <tr key={entry.id} className="hover:bg-gray-50 transition">
+                                            pagedEntries.map((entry) => (
+                                                <tr key={entry.id} style={{ borderBottom: "1px solid var(--border-subtle)" }}
+                                                    onMouseEnter={(e) => (e.currentTarget as HTMLTableRowElement).style.backgroundColor = "var(--bg-elevated)"}
+                                                    onMouseLeave={(e) => (e.currentTarget as HTMLTableRowElement).style.backgroundColor = "transparent"}
+                                                >
                                                     <td className="px-6 py-4">
-                                                        <span className="font-medium text-gray-900">{entry.siteName}</span>
+                                                        <span className="font-medium" style={{ color: "var(--text-primary)" }}>{entry.siteName}</span>
                                                     </td>
-                                                    <td className="px-6 py-4 text-gray-600">{entry.revenueSource}</td>
+                                                    <td className="px-6 py-4" style={{ color: "var(--text-secondary)" }}>{entry.revenueSource}</td>
                                                     <td className="px-6 py-4">
-                                                        <span className="font-semibold text-gray-900">{formatCurrency(entry.amount)}</span>
+                                                        <span className="font-semibold" style={{ color: "var(--text-primary)" }}>{formatCurrency(entry.amount)}</span>
                                                     </td>
-                                                    <td className="px-6 py-4 text-gray-600">
+                                                    <td className="px-6 py-4" style={{ color: "var(--text-secondary)" }}>
                                                         {new Date(entry.dateSubmitted).toLocaleDateString('en-US', {
                                                             year: 'numeric',
                                                             month: 'short',
@@ -732,50 +761,57 @@ export default function RevenueManagement() {
                                                             {formatStatusLabel(entry.status)}
                                                         </span>
                                                     </td>
-                                                    <td className="px-6 py-4 text-gray-600">{entry.submittedBy}</td>
+                                                    <td className="px-6 py-4" style={{ color: "var(--text-secondary)" }}>{entry.submittedBy}</td>
                                                     <td className="px-6 py-4">
                                                         <div className="flex items-center gap-2">
                                                             <button
-                                                                onClick={() => {
-                                                                    setSelectedEntry(entry);
-                                                                    setShowViewModal(true);
-                                                                }}
-                                                                className="p-2 hover:bg-gray-100 rounded-lg transition"
+                                                                onClick={() => { setSelectedEntry(entry); setShowViewModal(true); }}
+                                                                className="p-2 rounded-lg transition"
                                                                 title="View"
+                                                                onMouseEnter={(e) => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "var(--bg-elevated)"}
+                                                                onMouseLeave={(e) => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"}
                                                             >
-                                                                <Eye size={18} className="text-blue-600" />
+                                                                <Eye size={18} className="text-blue-500" />
                                                             </button>
                                                             <button
                                                                 onClick={() => handleEdit(entry)}
-                                                                className="p-2 hover:bg-slate-100 rounded-lg transition"
+                                                                className="p-2 rounded-lg transition"
                                                                 title="Edit"
+                                                                onMouseEnter={(e) => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "var(--bg-elevated)"}
+                                                                onMouseLeave={(e) => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"}
                                                             >
-                                                                <Edit size={18} className="text-slate-600" />
+                                                                <Edit size={18} style={{ color: "var(--text-secondary)" }} />
                                                             </button>
                                                             <button
                                                                 onClick={() => handleDelete(entry)}
-                                                                className="p-2 hover:bg-red-50 rounded-lg transition"
+                                                                className="p-2 rounded-lg transition"
                                                                 title="Delete"
+                                                                onMouseEnter={(e) => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "var(--status-danger-bg)"}
+                                                                onMouseLeave={(e) => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"}
                                                             >
-                                                                <Trash2 size={18} className="text-red-600" />
+                                                                <Trash2 size={18} style={{ color: "var(--status-danger)" }} />
                                                             </button>
                                                             {entry.status === 'Pending' && (
                                                                 <>
                                                                     <button
                                                                         onClick={() => handleApprove(entry)}
                                                                         disabled={updatingStatus || updatingProductionStatus}
-                                                                        className="p-2 hover:bg-green-50 rounded-lg transition"
+                                                                        className="p-2 rounded-lg transition"
                                                                         title="Approve"
+                                                                        onMouseEnter={(e) => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "var(--status-success-bg)"}
+                                                                        onMouseLeave={(e) => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"}
                                                                     >
-                                                                        <Check size={18} className="text-green-600" />
+                                                                        <Check size={18} style={{ color: "var(--status-success)" }} />
                                                                     </button>
                                                                     <button
                                                                         onClick={() => handleReject(entry)}
                                                                         disabled={updatingStatus || updatingProductionStatus}
-                                                                        className="p-2 hover:bg-red-50 rounded-lg transition"
+                                                                        className="p-2 rounded-lg transition"
                                                                         title="Reject"
+                                                                        onMouseEnter={(e) => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "var(--status-danger-bg)"}
+                                                                        onMouseLeave={(e) => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"}
                                                                     >
-                                                                        <X size={18} className="text-red-600" />
+                                                                        <X size={18} style={{ color: "var(--status-danger)" }} />
                                                                     </button>
                                                                 </>
                                                             )}
@@ -789,57 +825,87 @@ export default function RevenueManagement() {
                             </div>
 
                             {/* Pagination */}
-                            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200">
-                                <div className="text-sm text-gray-600">
-                                    Showing {filteredEntries.length} of {entries.length} entries
+                            <div className="flex items-center justify-between px-6 py-4" style={{ borderTop: "1px solid var(--border)" }}>
+                                <div className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                                    {filteredEntries.length === 0 ? "No entries" : `${(entriesPage - 1) * rowsPerPage + 1}–${Math.min(entriesPage * rowsPerPage, filteredEntries.length)} of ${filteredEntries.length}`}
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <button className="px-3 py-1.5 rounded-lg hover:bg-gray-100 text-sm">Previous</button>
-                                    <button className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm">1</button>
-                                    <button className="px-3 py-1.5 rounded-lg hover:bg-gray-100 text-sm">2</button>
-                                    <button className="px-3 py-1.5 rounded-lg hover:bg-gray-100 text-sm">3</button>
-                                    <button className="px-3 py-1.5 rounded-lg hover:bg-gray-100 text-sm">Next</button>
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        onClick={() => setEntriesPage(p => Math.max(1, p - 1))}
+                                        disabled={entriesPage === 1}
+                                        className="px-3 py-1.5 rounded-lg text-sm transition disabled:opacity-40"
+                                        style={{ color: "var(--text-secondary)", background: "transparent" }}
+                                        onMouseEnter={(e) => { if (entriesPage > 1) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "var(--bg-elevated)"; }}
+                                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
+                                    >Previous</button>
+                                    {getPageNums(entriesPage, totalEntryPages).map((p, i) =>
+                                        p === '...' ? (
+                                            <span key={`e${i}`} className="px-2 text-sm" style={{ color: "var(--text-tertiary)" }}>…</span>
+                                        ) : (
+                                            <button
+                                                key={`e${p}`}
+                                                onClick={() => setEntriesPage(p as number)}
+                                                className="w-8 h-8 rounded-lg text-sm font-medium transition"
+                                                style={entriesPage === p
+                                                    ? { background: "var(--accent)", color: "#fff" }
+                                                    : { background: "transparent", color: "var(--text-secondary)" }}
+                                                onMouseEnter={(e) => { if (entriesPage !== p) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "var(--bg-elevated)"; }}
+                                                onMouseLeave={(e) => { if (entriesPage !== p) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
+                                            >{p}</button>
+                                        )
+                                    )}
+                                    <button
+                                        onClick={() => setEntriesPage(p => Math.min(totalEntryPages, p + 1))}
+                                        disabled={entriesPage === totalEntryPages}
+                                        className="px-3 py-1.5 rounded-lg text-sm transition disabled:opacity-40"
+                                        style={{ color: "var(--text-secondary)", background: "transparent" }}
+                                        onMouseEnter={(e) => { if (entriesPage < totalEntryPages) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "var(--bg-elevated)"; }}
+                                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
+                                    >Next</button>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="bg-white rounded-2xl shadow-sm overflow-hidden mt-6">
-                            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                        <div className="rounded-2xl shadow-sm overflow-hidden mt-6" style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)" }}>
+                            <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid var(--border)" }}>
                                 <div>
-                                    <h2 className="text-lg font-semibold text-gray-900">Production Table</h2>
-                                    <p className="text-sm text-gray-500 mt-1">Dedicated production view for admin review and follow-up.</p>
+                                    <h2 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>Production Table</h2>
+                                    <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Dedicated production view for admin review and follow-up.</p>
                                 </div>
-                                <span className="text-sm text-gray-500">{filteredProductionRecords.length} records</span>
+                                <span className="text-sm" style={{ color: "var(--text-tertiary)" }}>{filteredProductionRecords.length} records</span>
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full">
-                                    <thead className="bg-gray-50 border-b border-gray-200">
+                                    <thead style={{ background: "var(--bg-elevated)", borderBottom: "1px solid var(--border)" }}>
                                         <tr>
-                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Date</th>
-                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Site Name</th>
-                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Quantity</th>
-                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Unit Price</th>
-                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Revenue</th>
-                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Status</th>
+                                            <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>Date</th>
+                                            <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>Site Name</th>
+                                            <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>Quantity</th>
+                                            <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>Unit Price</th>
+                                            <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>Revenue</th>
+                                            <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>Status</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-gray-200">
-                                        {filteredProductionRecords.length === 0 ? (
+                                    <tbody>
+                                        {pagedProduction.length === 0 ? (
                                             <tr>
-                                                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                                                <td colSpan={6} className="px-6 py-8 text-center" style={{ color: "var(--text-tertiary)" }}>
                                                     No production records found
                                                 </td>
                                             </tr>
                                         ) : (
-                                            filteredProductionRecords.map((record) => {
+                                            pagedProduction.map((record) => {
                                                 const mine = mineCompanies.find((company: MineCompany) => company.id === record.mine);
                                                 return (
-                                                    <tr key={record.id} className="hover:bg-gray-50 transition">
-                                                        <td className="px-6 py-4 text-gray-600">{record.date}</td>
-                                                        <td className="px-6 py-4 font-medium text-gray-900">{mine?.name || `Mine #${record.mine}`}</td>
-                                                        <td className="px-6 py-4 text-gray-600">{record.quantity_produced.toFixed(2)} tons</td>
-                                                        <td className="px-6 py-4 text-gray-600">{formatCurrency(record.unit_price)}</td>
-                                                        <td className="px-6 py-4 font-semibold text-gray-900">{formatCurrency(record.total_revenue || (record.quantity_produced * record.unit_price))}</td>
+                                                    <tr key={record.id} style={{ borderBottom: "1px solid var(--border-subtle)" }}
+                                                        onMouseEnter={(e) => (e.currentTarget as HTMLTableRowElement).style.backgroundColor = "var(--bg-elevated)"}
+                                                        onMouseLeave={(e) => (e.currentTarget as HTMLTableRowElement).style.backgroundColor = "transparent"}
+                                                    >
+                                                        <td className="px-6 py-4" style={{ color: "var(--text-secondary)" }}>{record.date}</td>
+                                                        <td className="px-6 py-4 font-medium" style={{ color: "var(--text-primary)" }}>{mine?.name || `Mine #${record.mine}`}</td>
+                                                        <td className="px-6 py-4" style={{ color: "var(--text-secondary)" }}>{record.quantity_produced.toFixed(2)} tons</td>
+                                                        <td className="px-6 py-4" style={{ color: "var(--text-secondary)" }}>{formatCurrency(record.unit_price)}</td>
+                                                        <td className="px-6 py-4 font-semibold" style={{ color: "var(--text-primary)" }}>{formatCurrency(record.total_revenue || (record.quantity_produced * record.unit_price))}</td>
                                                         <td className="px-6 py-4">
                                                             <span className="px-3 py-1.5 rounded-full text-xs font-medium" style={getStatusStyle(record.status || 'Pending')}>
                                                                 {formatStatusLabel((record.status || 'Pending') as RevenueEntry['status'])}
@@ -852,13 +918,53 @@ export default function RevenueManagement() {
                                     </tbody>
                                 </table>
                             </div>
+                            {/* Production Pagination */}
+                            <div className="flex items-center justify-between px-6 py-4" style={{ borderTop: "1px solid var(--border)" }}>
+                                <div className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                                    {filteredProductionRecords.length === 0 ? "No records" : `${(productionPage - 1) * rowsPerPage + 1}–${Math.min(productionPage * rowsPerPage, filteredProductionRecords.length)} of ${filteredProductionRecords.length}`}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        onClick={() => setProductionPage(p => Math.max(1, p - 1))}
+                                        disabled={productionPage === 1}
+                                        className="px-3 py-1.5 rounded-lg text-sm transition disabled:opacity-40"
+                                        style={{ color: "var(--text-secondary)", background: "transparent" }}
+                                        onMouseEnter={(e) => { if (productionPage > 1) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "var(--bg-elevated)"; }}
+                                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
+                                    >Previous</button>
+                                    {getPageNums(productionPage, totalProdPages).map((p, i) =>
+                                        p === '...' ? (
+                                            <span key={`p${i}`} className="px-2 text-sm" style={{ color: "var(--text-tertiary)" }}>…</span>
+                                        ) : (
+                                            <button
+                                                key={`p${p}`}
+                                                onClick={() => setProductionPage(p as number)}
+                                                className="w-8 h-8 rounded-lg text-sm font-medium transition"
+                                                style={productionPage === p
+                                                    ? { background: "var(--accent)", color: "#fff" }
+                                                    : { background: "transparent", color: "var(--text-secondary)" }}
+                                                onMouseEnter={(e) => { if (productionPage !== p) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "var(--bg-elevated)"; }}
+                                                onMouseLeave={(e) => { if (productionPage !== p) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
+                                            >{p}</button>
+                                        )
+                                    )}
+                                    <button
+                                        onClick={() => setProductionPage(p => Math.min(totalProdPages, p + 1))}
+                                        disabled={productionPage === totalProdPages}
+                                        className="px-3 py-1.5 rounded-lg text-sm transition disabled:opacity-40"
+                                        style={{ color: "var(--text-secondary)", background: "transparent" }}
+                                        onMouseEnter={(e) => { if (productionPage < totalProdPages) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "var(--bg-elevated)"; }}
+                                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
+                                    >Next</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     {/* AI Revenue Alerts Panel */}
                     <div className="w-80">
-                        <div className="bg-white rounded-2xl shadow-sm p-6 sticky top-8">
-                            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                        <div className="rounded-2xl shadow-sm p-6 sticky top-8" style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)" }}>
+                            <h3 className="text-lg font-bold mb-4 flex items-center gap-2" style={{ color: "var(--text-primary)" }}>
                                 <AlertTriangle size={20} className="text-yellow-600" />
                                 AI Revenue Alerts
                             </h3>
@@ -892,7 +998,11 @@ export default function RevenueManagement() {
                                     </div>
                                 )}
                             </div>
-                            <button className="w-full px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition font-medium text-sm flex items-center justify-center gap-2">
+                            <button className="w-full px-4 py-2.5 rounded-xl transition font-medium text-sm flex items-center justify-center gap-2"
+                                style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}
+                                onMouseEnter={(e) => (e.currentTarget as HTMLButtonElement).style.background = "var(--border)"}
+                                onMouseLeave={(e) => (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-elevated)"}
+                            >
                                 View All Alerts
                                 <ChevronRight size={16} />
                             </button>

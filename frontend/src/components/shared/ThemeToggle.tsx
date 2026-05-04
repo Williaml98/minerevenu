@@ -37,7 +37,7 @@ export default function ThemeToggle() {
   };
 
   if (!mounted) {
-    return <div className="w-10 h-10 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }} />;
+    return <div className="w-10 h-10 rounded-full" style={{ background: "var(--navbar-toggle-bg)" }} />;
   }
 
   return (
@@ -45,9 +45,9 @@ export default function ThemeToggle() {
       onClick={toggle}
       className="flex items-center justify-center w-10 h-10 rounded-full transition-all duration-200"
       style={{
-        background: "rgba(255,255,255,0.08)",
-        border: "1px solid rgba(255,255,255,0.10)",
-        color: "#cbd5e1",
+        background: "var(--navbar-toggle-bg)",
+        border: "1px solid var(--navbar-toggle-border)",
+        color: "var(--navbar-toggle-color)",
       }}
       title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
       aria-label="Toggle theme"
